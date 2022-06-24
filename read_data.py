@@ -18,27 +18,21 @@ from astropy.io import fits
 from functions import *
 import glob
 
+dir_data = "Data/IGRINS/"   #Sep18 #Jun19
 
 # define planet b parameters
 # from Martioli+2021
 P        = 8.463000 # period in days
 t0       = 2458330.39051 # known mid-transit time in JD
-dir_data = "Data/IGRINS/"   #Sep18 #Jun19
-
-c0 = Constants().c0
-
-### Transit parameters -- Compute the transit window
-### Using batman python package https://lweb.cfa.harvard.edu/~lkreidberg/batman/
-### Get the limb-darkening coefficients in H band from Claret+2011: https://vizier.cds.unistra.fr/viz-bin/VizieR?-source=J/A+A/529/A75
 Rp       = 25929.97  #Planet radius  [km]
 Rs       = 522255.0  #Stellar radius [km]
 ip       = 89.5      #Transit incl.  [deg]
 ap       = 18.476     #Semi-maj axis  [R_star]
 ep       = 0.0     #Eccentricity of Pl. orbit
 wp       = 90.0     #Arg of periaps [deg]
+### Get the limb-darkening coefficients in H band from Claret+2011: https://vizier.cds.unistra.fr/viz-bin/VizieR?-source=J/A+A/529/A75
 ld_mod   = "nonlinear"     #Limb-darkening model ["nonlinear", "quadratic", "linear"]
 ld_coef  = [1.2783,-1.5039,1.2042,-0.3833] # Claret et al. 2011
-
 
 ### Stellar radial velocity info
 Ks        = 0.006    #RV semi-amplitude of the star orbital motion due to planet [km/s]
@@ -46,7 +40,7 @@ V0        = -4.71    #Stellar systemic velocity [km/s]
 
 
 
-
+c0 = Constants().c0
 
 ### Name of the pickle file to store the info in
 outroot = "Input_data/"
@@ -151,6 +145,7 @@ print('mid-transit time: {}'.format(tmid))
 
 
 ### Compute transit window
+### Using batman python package https://lweb.cfa.harvard.edu/~lkreidberg/batman/
 phase        = (time_JD-tmid)/P
 t0           = tmid
 flux         = compute_transit(Rp,Rs,ip,t0,ap,P,ep,wp,ld_mod,ld_coef,time_JD)
