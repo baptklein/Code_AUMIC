@@ -70,12 +70,12 @@ wlens = np.concatenate([wlensH,wlensK])
 
 ### Initialisation
 ndet, npix = wlens.shape
-nep        = len(specfilesH)
-time_MJD   = np.zeros(nep-1)
+nep        = len(specfilesH)-2 # read up to last two files (standard star)
+time_MJD   = np.zeros(nep)
 time_JD    = np.zeros_like(time_MJD)
 airms      = np.zeros_like(time_MJD)
 humidity   = np.zeros_like(time_MJD)
-data_RAW   = np.zeros((ndet,nep-1,npix))
+data_RAW   = np.zeros((ndet,nep,npix))
 data_var   = np.zeros_like(data_RAW)
 data_sn    = np.zeros_like(data_RAW)
 
