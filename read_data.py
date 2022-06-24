@@ -29,7 +29,7 @@ dir_data = "Data/IGRINS/"   #Sep18 #Jun19
 ### Using batman python package https://lweb.cfa.harvard.edu/~lkreidberg/batman/
 ### Get the limb-darkening coefficients in H band from Claret+2011: https://vizier.cds.unistra.fr/viz-bin/VizieR?-source=J/A+A/529/A75
 Rp       = 25929.97  #Planet radius  [km]
-Rs       = 522255.0  #Stellar radius [km] 
+Rs       = 522255.0  #Stellar radius [km]
 ip       = 89.5      #Transit incl.  [deg]
 ap       = 18.476     #Semi-maj axis  [R_star]
 ep       = 0.0     #Eccentricity of Pl. orbit
@@ -46,7 +46,7 @@ V0        = -4.71    #Stellar systemic velocity [km/s]
 
 
 
-### Name of the pickle file to store the info in 
+### Name of the pickle file to store the info in
 name_fin = "Input_data/data_igrins.pkl"
 
 ### Get all data to read
@@ -82,7 +82,8 @@ data_sn    = np.zeros_like(data_RAW)
 
 ### open and read files -- arrange data into spectral matrix
 
-for ifile in range(len(specfilesH)-1):
+# read up to last two files (standard star observations)
+for ifile in range(len(specfilesH)-2):
     #H-band
     hdu_list = fits.open(specfilesH[ifile])
     image_dataH = hdu_list[0].data
@@ -100,10 +101,10 @@ for ifile in range(len(specfilesH)-1):
     #variances
     hdu_list   = fits.open(varfilesH[ifile])
     image_varH = hdu_list[0].data
-    
-    hdu_list   = fits.open(snfilesH[ifile])    
+
+    hdu_list   = fits.open(snfilesH[ifile])
     image_snH  = hdu_list[0].data
-    
+
     #K-band
     hdu_list = fits.open(specfilesK[ifile])
     image_dataK = hdu_list[0].data
@@ -114,9 +115,9 @@ for ifile in range(len(specfilesH)-1):
     #variances
     hdu_list = fits.open(varfilesK[ifile])
     image_varK = hdu_list[0].data
-    hdu_list   = fits.open(snfilesK[ifile])    
-    image_snK  = hdu_list[0].data    
-    
+    hdu_list   = fits.open(snfilesK[ifile])
+    image_snK  = hdu_list[0].data
+
     hdu_list.close()
 
     #concatatingin K and H spectra
@@ -125,14 +126,14 @@ for ifile in range(len(specfilesH)-1):
     sn   = np.concatenate([image_snH,image_snK])
     data_RAW[:,ifile,:] = data # master matrix
     data_var[:,ifile,:] = var
-    data_sn[:,ifile,:]  = sn  
-    
+    data_sn[:,ifile,:]  = sn
+
 plt.plot(time_MJD,"+")
 plt.show()
-    
-    
-    
-    
+
+
+
+
 
 
 tmid = t0
@@ -175,27 +176,27 @@ nord     = len(SN)
 I_corr,W_corr,var_corr = [],[],[]
 for zz in range(nord):
 
-    I_bl  = data_RAW[zz] 
+    I_bl  = data_RAW[zz]
     W     = wlens[zz]
-    
+
     ind   = []
     for nn in range(len(I_bl)):
         i = np.where(np.isfinite(I_bl[nn])==True)[0]
         ind.append(i)
     r  = np.array(list(set.intersection(*map(set,ind))),dtype=int)
     r  = np.sort(np.unique(r))
-    
+
     ### remove the NaNs
     I_ini = []
     W_ini = W[r]
     for nn in range(len(I_bl)):
         I_ini.append(I_bl[nn,r])
-    
+
     print("Order",zz,":",len(r))
-        
+
     I_corr.append(np.array(I_ini,dtype=float))
     W_corr.append(np.array(W_ini,dtype=float))
-    
+
 
 
 c0 = 299792.458
@@ -203,7 +204,7 @@ for nn in range(len(W_corr)):
     WW   = W_corr[nn]
     WM   = np.mean(WW)
     diff = np.diff(WW)
-    print(np.mean(diff)*c0/WM,"+/-",np.std(diff)*c0/WM) 
+    print(np.mean(diff)*c0/WM,"+/-",np.std(diff)*c0/WM)
 
 
 
@@ -260,10 +261,3 @@ with open(name_fin, 'wb') as specfile:
     pickle.dump(savedata,specfile)
 print('')
 print('Finished.')
-
-
-
-
-
-
-
