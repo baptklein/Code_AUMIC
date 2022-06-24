@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on 03/2022 12:54:11 2021
+Created in Mar 2022
+Edited in Jun 2022
 
-@author: Baptiste & Florian
+@author: Baptiste KLEIN & Annabella MEECH
 """
 import numpy as np
 import os
@@ -25,6 +26,8 @@ import matplotlib.cbook
 warnings.filterwarnings("ignore",category=matplotlib.cbook.mplDeprecation)
 from scipy.optimize import minimize
 from sklearn.decomposition import PCA
+import glob
+from astropy.time import Time
 
 
 
@@ -35,14 +38,108 @@ class Constants:
     def __init__(self):
         self.c0 = 299792.458 #km/s
 
+# -----------------------------------------------------------
+# This function reads a time series of PLP IGRINS files
+# It returns the spectral matrix of the form (order,epoch,pixel)
+# The spectra to read must be stored in a dedicated repository
+# -----------------------------------------------------------
+def read_igrins_data(repp):
+    """
+    --> Inputs:     - repp:      Path to the directory containing all the '.fits' files to read
 
+    --> Outputs:    - time_JD: average JD times for AB extracted pairs
+                    - wlens: wavelength vectors
+                    - data_RAW: PLP data spectral matrix
+                    - data_var: PLP data variance matrix
+                    - data_sn: PLP data SNR matrix
+                    - airms: average airmass value for each extracted AB pair
+                    - humidity
+    """
+    ### Get all data to read
+    specfilesH=sorted(glob.glob(repp+'*SDCH*spec.fits'))
+    specfilesK=sorted(glob.glob(repp+'*SDCK*spec.fits'))
+    varfilesH=sorted(glob.glob(repp+'*SDCH*variance.fits'))
+    varfilesK=sorted(glob.glob(repp+'*SDCK*variance.fits'))
+    snfilesH=sorted(glob.glob(repp+'*SDCH*sn.fits'))
+    snfilesK=sorted(glob.glob(repp+'*SDCK*sn.fits'))
+    assert len(specfilesH)==len(varfilesH)==len(specfilesK)==len(varfilesK), "Unequal no. of H and K files"
+    print('number of files: {}'.format(len(specfilesH)))
+
+    ### Get shape information for H and K files
+    wlfile = fits.open(repp+'SDCH_20210803_0276.wave.fits')
+    wlensH = wlfile[0].data
+    wlfile = fits.open(repp+'SDCK_20210803_0276.wave.fits')
+    wlensK = wlfile[0].data
+    wlens = np.concatenate([wlensH,wlensK])
+
+    ### Initialisation
+    ndet, npix = wlens.shape
+    nep        = len(specfilesH)-2 # read up to last two files (standard star)
+    time_MJD   = np.zeros(nep)
+    time_JD    = np.zeros_like(time_MJD)
+    airms      = np.zeros_like(time_MJD)
+    humidity   = np.zeros_like(time_MJD)
+    data_RAW   = np.zeros((ndet,nep,npix))
+    data_var   = np.zeros_like(data_RAW)
+    data_sn    = np.zeros_like(data_RAW)
+
+
+    ### open and read files -- arrange data into spectral matrix
+
+    # read up to last two files (standard star observations)
+    for ifile in range(len(specfilesH)-2):
+        #H-band
+        hdu_list = fits.open(specfilesH[ifile])
+        image_dataH = hdu_list[0].data
+        hdr = hdu_list[0].header
+        date_begin = hdr['DATE-OBS'] # in UTC
+        date_end = hdr['DATE-END']
+        t1 = Time(date_begin,format='isot',scale='utc')
+        t2 = Time(date_end,format='isot',scale='utc')
+        time_JD[ifile] = float(0.5*(t1.jd+t2.jd))
+        time_MJD[ifile] = float(0.5*(t1.mjd+t2.mjd))
+        airms[ifile] = 0.5*(hdr['AMSTART']+hdr['AMEND']) # average airmass
+        humidity[ifile] = hdr['HUMIDITY']
+        print(date_begin, date_end, time_MJD[ifile])
+
+        #variances
+        hdu_list   = fits.open(varfilesH[ifile])
+        image_varH = hdu_list[0].data
+
+        hdu_list   = fits.open(snfilesH[ifile])
+        image_snH  = hdu_list[0].data
+
+        #K-band
+        hdu_list = fits.open(specfilesK[ifile])
+        image_dataK = hdu_list[0].data
+        hdr = hdu_list[0].header
+        date_begin = hdr['DATE-OBS'] # in UTC
+        date_end = hdr['DATE-END']
+
+        #variances
+        hdu_list = fits.open(varfilesK[ifile])
+        image_varK = hdu_list[0].data
+        hdu_list   = fits.open(snfilesK[ifile])
+        image_snK  = hdu_list[0].data
+
+        hdu_list.close()
+
+        #concatatingin K and H spectra
+        data = np.concatenate([image_dataH,image_dataK])
+        var  = np.concatenate([image_varH,image_varK])
+        sn   = np.concatenate([image_snH,image_snK])
+        data_RAW[:,ifile,:] = data # master matrix
+        data_var[:,ifile,:] = var
+        data_sn[:,ifile,:]  = sn
+
+    return time_JD, wlens, data_RAW, data_var, data_sn, airms, humidity
 
 # -----------------------------------------------------------
 # This function reads a time series of DRS-provided SPIRou files
 # It stores some of the relevant information into "Order" objects
 # and returns time series relevant for the analysis
 # The spectra to read must be stored in a dedicated repository
-# For the time being, the function can only read t.fits extensions 
+# For the time being, the function can only read t.fits extensions
 # -----------------------------------------------------------
 def read_data_spirou(repp,list_ord,nord):
 
@@ -72,10 +169,10 @@ def read_data_spirou(repp,list_ord,nord):
     for nn in range(nobs):
         nmn          = repp + "/" + str(nam_t[nn])
         hdul_t       = fits.open(nmn)
-        airmass[nn]  = float(hdul_t[0].header["AIRMASS"])        
-        bjd[nn]      = float(hdul_t[1].header["BJD"]) #(float(hdul_t[0].header['MJDATE'])+float(hdul_t[0].header['MJDEND']))/2.0+2400000.5        
-        
-        berv[nn]     = float(hdul_t[1].header["BERV"])  
+        airmass[nn]  = float(hdul_t[0].header["AIRMASS"])
+        bjd[nn]      = float(hdul_t[1].header["BJD"]) #(float(hdul_t[0].header['MJDATE'])+float(hdul_t[0].header['MJDEND']))/2.0+2400000.5
+
+        berv[nn]     = float(hdul_t[1].header["BERV"])
         i            = np.array(hdul_t[1].data,dtype=float) # intensity spectrum
         w            = np.array(hdul_t[2].data,dtype=float) # wavelength vector
         bla          = np.array(hdul_t[3].data,dtype=float) # blaze vector
@@ -105,8 +202,8 @@ def read_data_spirou(repp,list_ord,nord):
         O.blaze = np.array(O.blaze,dtype=float)
         O.I_atm = np.array(O.I_atm,dtype=float)
     return list_ord,airmass,bjd,berv,snr_mat
-    
-    
+
+
 # -----------------------------------------------------------
 # Get transit window -- requires batman python module
 # Uncomment lines below to use batman module to compute transit flux
@@ -123,22 +220,22 @@ def compute_transit(Rp,Rs,ip,T0,ap,Porb,ep,wp,limb_dark,uh,T_obs):
                     - ap:        Semi-major-axis [Stellar radius]
                     - Porb:      Planet orbital period (same unit as T_obs)
                     - ep:        Eccentricity of the planet orbit
-                    - wp:        Argument of the periapsis for the planet orbit [deg] 
+                    - wp:        Argument of the periapsis for the planet orbit [deg]
                     - limb_dark: Type of limb-darkening model: "linear", "quadratic", "nonlinear" see https://lweb.cfa.harvard.edu/~lkreidberg/batman/
                     - uh:        Limb-darkening coefficients matching the type of model and in the SPIRou band (Typically H or K)
                     - T_obs:     Time vector
 
-    --> Outputs:    - flux:      Relative transit flux (1 outside transit) 
+    --> Outputs:    - flux:      Relative transit flux (1 outside transit)
     """
 #
     params           = batman.TransitParams()
-    params.rp        = Rp/Rs                       
+    params.rp        = Rp/Rs
     params.inc       = ip
     params.t0        = T0
     params.a         = ap
     params.per       = Porb
     params.ecc       = ep
-    params.w         = wp         
+    params.w         = wp
     params.limb_dark = limb_dark
     params.u         = uh
     bat              = batman.TransitModel(params,T_obs)
@@ -161,7 +258,7 @@ def get_transit_dates(wind):
 
     n_ini,n_end = 1,1
     if wind[0] > 0.0: n_ini = 0
-    else: 
+    else:
         cc = 0
         while wind[cc] == 0.0:
             cc += 1
@@ -173,44 +270,44 @@ def get_transit_dates(wind):
             cc += 1
         n_end = cc
     return n_ini,n_end
-    
-    
+
+
 # -----------------------------------------------------------
 # Move spectra from one frame to another
-# -----------------------------------------------------------    
+# -----------------------------------------------------------
 def move_spec(V,I,Vc,sig_g):
     """
     --> Inputs:     - V:     Velocity vector (assumed 1D)
                     - I:     Array of flux values (assumed 2D [N_obs,N_wav])
                     - Vc:    Velocimetry correction [km/s]
                     - pixel: Binned instrument pixel in wavelength space
-                    - kind:  kind of interpolatation (scipy interp1D)  
-    
+                    - kind:  kind of interpolatation (scipy interp1D)
+
 
     --> Outputs:    - I_al:  2D matrix of Vc-corrected spectra
-    
+
     """
 
     I_al    = np.zeros((len(Vc),len(V)))
     dddv    = np.linspace(-3.*sig_g,3.*sig_g,30)
     G       = normal_law(dddv,0.0,sig_g)
     step    = dddv[1]-dddv[0]
-    
+
     for ii in range(len(Vc)):
-    
+
         ### Depending on which frame we're moving into
         if len(I) == len(Vc): fi = interp1d(V,I[ii],kind="cubic",fill_value="extrapolate")
         else:                 fi = interp1d(V,I[0],kind="cubic",fill_value="extrapolate")
-        
+
         I_tmp     = step * (fi(V+Vc[ii]+dddv[0])*G[0]+fi(V+Vc[ii]+dddv[-1])*G[-1]) * 0.5
         for hh in range(1,len(dddv)-1):
-            I_tmp += step*fi(V+Vc[ii]+dddv[hh])*G[hh]  
-        I_al[ii] = I_tmp          
-    return I_al 
+            I_tmp += step*fi(V+Vc[ii]+dddv[hh])*G[hh]
+        I_al[ii] = I_tmp
+    return I_al
 
 
 
-    
+
 
 
 
@@ -226,7 +323,7 @@ def get_rvs(t,k,p,t0):
                     - p:   Planet orbital period
                     - t0:  Planet mid-transit time
 
-    --> Outputs:    - Planet-induced RV signature for the input time values 
+    --> Outputs:    - Planet-induced RV signature for the input time values
     """
 
     return  k*np.sin(2.*np.pi/p * (t0-t))
@@ -258,17 +355,17 @@ def hyp_inv(par,yy):
     return par[0]/(yy-par[1])
 
 # -----------------------------------------------------------
-# Return least-square difference between a hyperbola for 'par' 
+# Return least-square difference between a hyperbola for 'par'
 # parameters and data yy.
-# xx is the X-axis vector 
+# xx is the X-axis vector
 # -----------------------------------------------------------
 def crit_hyp(par,xx,yy):
     y_pred = hyp(par,xx)
-    return np.sum((yy-y_pred)**(2))  
+    return np.sum((yy-y_pred)**(2))
 
 
 # -----------------------------------------------------------
-# Compute Order to mean wavelength equivalence 
+# Compute Order to mean wavelength equivalence
 # Usage: Plot order number as X-axis and mean wavelengths as Y axis
 # In practice: fits an hyperbola between order nb and mean wavelength
 # See function plots.plot_orders for more information
@@ -284,15 +381,15 @@ def fit_order_wave(LO,wm_fin):
                     - LO_predt: densely-sampled list of orders for minor ticks locators
     """
 
-    par0    = np.array([100000,200.0],dtype=float) 
+    par0    = np.array([100000,200.0],dtype=float)
     res     = minimize(crit_hyp,par0,args=(LO,wm_fin))
-    p_best  = res.x 
+    p_best  = res.x
     LO_tot  = np.arange(29,81)
     pp      = hyp(p_best,LO_tot)
     WWT      = np.linspace(2400,900,16)
     WW       = np.array([2400.0,2100,1800,1500,1200,1000],dtype=int)
     LO_predt = hyp_inv(p_best,WWT)
-    LO_pred  = hyp_inv(p_best,WW) 
+    LO_pred  = hyp_inv(p_best,WW)
     return WW,LO_pred,LO_predt
 
 
@@ -307,7 +404,7 @@ def LS(X,Y,Si=[]):
         b    = np.dot(np.dot(X.T,Si),Y)
     else:
         A    = np.dot(X.T,X)
-        b    = np.dot(X.T,Y)    
+        b    = np.dot(X.T,Y)
     Ainv = np.linalg.inv(A)
     par  = np.dot(Ainv,b)
     return par,np.sqrt(np.diag(Ainv))
@@ -328,17 +425,17 @@ def poly_fit(x,y,deg,sig,n_iter=3):
     --> Outputs:    - fitted_model (function): best-fitting model after last iteration
                     - filtered_data: data after outlier removal
     """
-    
+
     pol_f     = polynomial.Polynomial1D(deg) ### Init polynom
     fit       = fitting.LinearLSQFitter()   ### Init optim method
     or_fit    = fitting.FittingWithOutlierRemoval(fit,sigma_clip,niter=n_iter, sigma=sig)  ### Do the fit at sig sigma level
-    or_fitted_model,mask = or_fit(pol_f,x,y) 
+    or_fitted_model,mask = or_fit(pol_f,x,y)
     filtered_data        = np.ma.masked_array(y,mask=mask)
     fitted_model         = fit(pol_f,x,filtered_data)
     return fitted_model,filtered_data
 
 
-    
+
 def normal_law(v,mu,sigma):
     g = 1./(np.sqrt(2.*np.pi)*sigma) * np.exp(-0.5*((v-mu)/(sigma))**(2))
     return g
@@ -363,7 +460,7 @@ def make_pca(I,N_comp_pca,return_all=False):
     --> Outputs:    - e_var: Relative contribution of each component to the variance in the data
                     - I_pca: Sequence of spectra after removing the first N_comp_pca
                     - I_del: Removed components (same shape as I) -- NOTE: only if return_all == True
-                    
+
     """
 
     ### Preprocessing: center + reduce input matrix
@@ -388,7 +485,7 @@ def make_pca(I,N_comp_pca,return_all=False):
     if return_all: # compute individually each removed components
         I_del  = np.zeros((N_comp_pca,len(I),len(I[0])))
         for ii in range(N_comp_pca):
-            cc        = np.zeros(I.shape)   
+            cc        = np.zeros(I.shape)
             cc[ii]    = comp[ii]
             I_del[ii] = np.dot(X_new,cc)
         return e_var,I_pca,I_del
@@ -396,7 +493,7 @@ def make_pca(I,N_comp_pca,return_all=False):
 
 
 # -----------------------------------------------------------
-# Compare the dispersion at the center of each spectrum (in 
+# Compare the dispersion at the center of each spectrum (in
 # each order) to the photon noise provided by the SPIRou DRS
 # -----------------------------------------------------------
 def plot_spectrum_dispersion(lord,nam_fig):
@@ -414,7 +511,7 @@ def plot_spectrum_dispersion(lord,nam_fig):
     rms_drs    = np.zeros(len(lord))
     rms_drs_s  = np.zeros(len(lord))
     rms_pca    = np.zeros(len(lord))
-    rms_pca_s  = np.zeros(len(lord))    
+    rms_pca_s  = np.zeros(len(lord))
     wmean      = np.zeros(len(lord))
     LO         = np.zeros(len(lord),dtype=int)
 
@@ -439,7 +536,7 @@ def plot_spectrum_dispersion(lord,nam_fig):
     ax.errorbar(LO,rms_sp,rms_sp_s,fmt="*",color="k",label="Reduced data",capsize=10.0,ms=10.)
     ax.errorbar(LO,rms_pca,rms_pca_s,fmt="^",color="g",label="After PCA",capsize=10.0,ms=7.5)
     ax.errorbar(LO,rms_drs,rms_drs_s,fmt="o",color="m",label="DRS",capsize=8.0)
-    
+
     ax.legend(ncol=2)
     ax2 = ax.twiny()
     ax2.set_xticks(LO_pred)
@@ -455,16 +552,16 @@ def plot_spectrum_dispersion(lord,nam_fig):
     plt.subplots_adjust(wspace=0.5,hspace = 0.)
     plt.savefig(nam_fig,bbox_inches="tight")
     plt.close()
-    
-    
-    
+
+
+
 #### Main class -- Order
-    
+
 class Order:
 
 
     def __init__(self,numb):
-        
+
         ### Generic information
         self.number       = numb    # Order number (in absolute unit -- 79: bluest; 31: reddest)
         self.W_mean       = 0.0     # Mean order wavelength
@@ -474,7 +571,7 @@ class Order:
 
         ### Raw data information
         self.W_raw    = []      # Wavelength vectors for the raw observations - 2D matrix (time-wavelength)
-        self.I_raw    = []      # Time series of observed spectra from the SPIRou DRS - 2D matrix (time-wavelength)                
+        self.I_raw    = []      # Time series of observed spectra from the SPIRou DRS - 2D matrix (time-wavelength)
         self.I_atm    = []      # Time series of Earth atmosphere spectra computed from the observations using Artigau+2014 method - DRS-provided 2D matrix (time-wavelength)
         self.blaze    = []      # Time series of blaze functions - 2D matrix (time-wavelength)
 
@@ -499,17 +596,17 @@ class Order:
     #    spectra into np.array square matrices
     # -----------------------------------------------------------
     def remove_nan(self):
-        
+
         """
         --> Inputs:      - Order object
-        
-        --> Outputs:     - Boolean: 1 --> order empty as NaNs everywhere; 0 otherwise 
+
+        --> Outputs:     - Boolean: 1 --> order empty as NaNs everywhere; 0 otherwise
         """
 
         ### Remove blaze
         I_bl = self.I_raw/self.blaze
 
-        
+
         ### Spot the NaNs:
         ### In "*t.fits" files, regions of high telluric absorptions are replaced by NaNs
         ### as no precise estimation of the flux could be carried out
@@ -534,9 +631,9 @@ class Order:
 
         ### Convert into 2D array object
         self.I_raw  = np.array(I_ini,dtype=float)
-        self.W_raw  = np.array(W_ini,dtype=float)[0]   
+        self.W_raw  = np.array(W_ini,dtype=float)[0]
         self.I_atm  = np.array(A_ini,dtype=float)
-        self.B_raw  = np.array(B_ini,dtype=float) 
+        self.B_raw  = np.array(B_ini,dtype=float)
         self.W_mean = self.W_raw.mean()   ### Compute mean of the actual observations
 
         ### Remove the order if it contains only NaNs
@@ -573,9 +670,9 @@ class Order:
                                     all points are remove until reaching a relative
                                     absorption of 'thres_up'
 
-        --> Outputs:    - self.I_cl; self.W_cl  
+        --> Outputs:    - self.I_cl; self.W_cl
         """
-        
+
         ### Identify regions of strong telluric absorption from the median DRS-provided
         ### telluric spectrum
         Am      = np.median(self.I_atm,axis=0)
@@ -593,7 +690,7 @@ class Order:
             while Am[i0+n_end2] < 1 - thres_up:
                 if i0 + n_end2 == len(Am)-1: break
                 n_end2 += 1
-            itel = np.arange(i0-n_ini2,i0+n_end2+1)  
+            itel = np.arange(i0-n_ini2,i0+n_end2+1)
             ind_tel.append(itel)
         if len(ind_tel)>0: ind_tel = np.sort(np.unique(np.concatenate(ind_tel)))
         else:              ind_tel = []
@@ -625,7 +722,7 @@ class Order:
                         - N_med:   Cut-off frequency of the median filter (nb of points of the sliding window of
                                    the moving median)
                         - sig_out: Threshold for outlier removal (in sigma)
-                        - N_adj:   Number of adjacent points to each outlier removed with the outlier 
+                        - N_adj:   Number of adjacent points to each outlier removed with the outlier
                         - nbor:    Number of points removed at each edge of the order
 
         --> Outputs:    - self.I_norm, self. W_norm
@@ -638,24 +735,24 @@ class Order:
         I_corr      = np.zeros(Is.shape)
         I_med_tot   = np.zeros(Is.shape)
         ind_fin     = []
-        
+
         for ii in range(len(Is)):
             I           = np.copy(Is[ii]) # Temp. spectrum
             W           = np.copy(Ws)
-            
+
             Im   = median_filter(I,N_med)
             In   = I/Im
             filt = sigma_clip(In,sigma=sig_out,maxiters=5)
             ind2 = np.where(filt.mask)[0]
             ind_fin.append(ind2)
-            
+
         ind_fin = np.sort(np.unique(np.concatenate(ind_fin)))
         Is2     = np.delete(Is,ind_fin,axis=1)
-        Ws2     = np.delete(Ws,ind_fin)            
+        Ws2     = np.delete(Ws,ind_fin)
         I_norm  = []
         for nn in range(len(Is2)):
             Im   = median_filter(Is2[nn],N_med)
-            In   = Is2[nn]/Im 
+            In   = Is2[nn]/Im
             I_norm.append(In)
         I_norm = np.array(I_norm,dtype=float)[:,nbor:-nbor]
         W_norm = Ws2[nbor:-nbor]
@@ -683,7 +780,7 @@ class Order:
                         - pb: vector of best-fitting spectra
                         - I_pred: Best-fitting modelled sequence of spectra
         """
-        
+
         ### Switch to log space
         indw    = np.argmin(np.abs(W-self.W_mean))
         COV_inv = np.diag(1./np.std(I[:,indw-200:indw+200],axis=1)**(2)) ## Assumes that normalized spectra dominated by white noise
@@ -734,48 +831,46 @@ class Order:
 
 
     def tune_pca(self,Nmap=5):
-    
+
         N_px          = 200
         n_iter_fit    = 10
-        
+
         Il            = np.log(self.I_fin)
         im            = np.nanmean(Il)
-        ist           = np.nanstd(Il)        
-        ff            = (Il - im)/ist        
-        
-        indw          = np.argmin(np.abs(self.W_fin-self.W_fin.mean())) 
+        ist           = np.nanstd(Il)
+        ff            = (Il - im)/ist
+
+        indw          = np.argmin(np.abs(self.W_fin-self.W_fin.mean()))
         std_mes       = np.std(ff[:,indw-N_px:indw+N_px],axis=1)
         WW            = self.W_fin - self.W_mean
         std_px        = np.std(ff,axis=0)
         std_in        = np.dot(std_mes.reshape((len(ff),1)),np.ones((1,len(self.W_fin))))
         model,filt    = poly_fit(WW,std_px,2,5,n_iter_fit)
         ampl          = model(WW)/np.min(model(WW))
-        
-        
+
+
         thres         = np.zeros(Nmap)
-        
-        for ii in range(Nmap):        
+
+        for ii in range(Nmap):
             NN    = np.random.normal(0.0,np.abs(std_in*ampl))
             NN   -= NN.mean()
             NN   /= NN.std()
             pca   = PCA(n_components=len(NN))
             pca.fit(np.float32(NN))
-            var       = pca.explained_variance_ratio_         
+            var       = pca.explained_variance_ratio_
             thres[ii] = np.max(var)
-    
-    
+
+
         pca   = PCA(n_components=len(NN))
         x_pca = np.float32(ff)
-        pca.fit(x_pca)       
-        var   = pca.explained_variance_ratio_ 
+        pca.fit(x_pca)
+        var   = pca.explained_variance_ratio_
         ncf   = len(np.where(var>np.max(thres))[0])
         return ncf
-        
-        
+
+
         #for uu in range(len(var_fin)):
         #    plt.plot(var_fin[uu],"*k")
         #plt.axhline(np.max(var_fin),ls=":",color="r")
         #plt.plot(var,"+r")
         #plt.show()
-
-

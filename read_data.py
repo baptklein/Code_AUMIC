@@ -48,90 +48,13 @@ if not os.path.exists(outroot):
     os.makedirs(outroot)
 name_fin = outroot+"data_igrins.pkl"
 
-### Get all data to read
-specfilesH=sorted(glob.glob(dir_data+'*SDCH*spec.fits'))
-specfilesK=sorted(glob.glob(dir_data+'*SDCK*spec.fits'))
-varfilesH=sorted(glob.glob(dir_data+'*SDCH*variance.fits'))
-varfilesK=sorted(glob.glob(dir_data+'*SDCK*variance.fits'))
-snfilesH=sorted(glob.glob(dir_data+'*SDCH*sn.fits'))
-snfilesK=sorted(glob.glob(dir_data+'*SDCK*sn.fits'))
-assert len(specfilesH)==len(varfilesH)==len(specfilesK)==len(varfilesK), "Unequal no. of H and K files"
-print('number of files: {}'.format(len(specfilesH)))
+
+time_JD, wlens, data_RAW, data_var, data_sn, airms, humidity = read_igrins_data(dir_data)
 
 
-### Get shape information for H and K files
-wlfile = fits.open(dir_data+'SDCH_20210803_0276.wave.fits')
-wlensH = wlfile[0].data
-wlfile = fits.open(dir_data+'SDCK_20210803_0276.wave.fits')
-wlensK = wlfile[0].data
-wlens = np.concatenate([wlensH,wlensK])
-
-
-### Initialisation
-ndet, npix = wlens.shape
-nep        = len(specfilesH)-2 # read up to last two files (standard star)
-time_MJD   = np.zeros(nep)
-time_JD    = np.zeros_like(time_MJD)
-airms      = np.zeros_like(time_MJD)
-humidity   = np.zeros_like(time_MJD)
-data_RAW   = np.zeros((ndet,nep,npix))
-data_var   = np.zeros_like(data_RAW)
-data_sn    = np.zeros_like(data_RAW)
-
-
-### open and read files -- arrange data into spectral matrix
-
-# read up to last two files (standard star observations)
-for ifile in range(len(specfilesH)-2):
-    #H-band
-    hdu_list = fits.open(specfilesH[ifile])
-    image_dataH = hdu_list[0].data
-    hdr = hdu_list[0].header
-    date_begin = hdr['DATE-OBS'] # in UTC
-    date_end = hdr['DATE-END']
-    t1 = Time(date_begin,format='isot',scale='utc')
-    t2 = Time(date_end,format='isot',scale='utc')
-    time_JD[ifile] = float(0.5*(t1.jd+t2.jd))
-    time_MJD[ifile] = float(0.5*(t1.mjd+t2.mjd))
-    airms[ifile] = 0.5*(hdr['AMSTART']+hdr['AMEND']) # average airmass
-    humidity[ifile] = hdr['HUMIDITY']
-    print(date_begin, date_end, time_MJD[ifile])
-
-    #variances
-    hdu_list   = fits.open(varfilesH[ifile])
-    image_varH = hdu_list[0].data
-
-    hdu_list   = fits.open(snfilesH[ifile])
-    image_snH  = hdu_list[0].data
-
-    #K-band
-    hdu_list = fits.open(specfilesK[ifile])
-    image_dataK = hdu_list[0].data
-    hdr = hdu_list[0].header
-    date_begin = hdr['DATE-OBS'] # in UTC
-    date_end = hdr['DATE-END']
-
-    #variances
-    hdu_list = fits.open(varfilesK[ifile])
-    image_varK = hdu_list[0].data
-    hdu_list   = fits.open(snfilesK[ifile])
-    image_snK  = hdu_list[0].data
-
-    hdu_list.close()
-
-    #concatatingin K and H spectra
-    data = np.concatenate([image_dataH,image_dataK])
-    var  = np.concatenate([image_varH,image_varK])
-    sn   = np.concatenate([image_snH,image_snK])
-    data_RAW[:,ifile,:] = data # master matrix
-    data_var[:,ifile,:] = var
-    data_sn[:,ifile,:]  = sn
-
-plt.plot(time_MJD,"+")
+plt.plot(time_JD,"+")
+plt.title('JD')
 plt.show()
-
-
-
 
 
 
@@ -211,7 +134,7 @@ for nn in range(len(W_corr)):
 print("\ncompute barycentric velocities")
 gemini = EarthLocation.from_geodetic(lat=-30.2407*u.deg, lon=-70.7366*u.deg, height=2715*u.m) #IGRINS
 sc = SkyCoord('20h45m09.5324974119s', '-31d20m27.237889841s') # AUMic
-barycorr = sc.radial_velocity_correction('barycentric',obstime=Time(time_MJD,format='mjd'), location=gemini)
+barycorr = sc.radial_velocity_correction('barycentric',obstime=Time(time_JD,format='jd'), location=gemini)
 vbary = -barycorr.to(u.km/u.s).value
 
 
