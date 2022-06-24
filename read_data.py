@@ -47,7 +47,10 @@ V0        = -4.71    #Stellar systemic velocity [km/s]
 
 
 ### Name of the pickle file to store the info in
-name_fin = "Input_data/data_igrins.pkl"
+outroot = "Input_data/"
+if not os.path.exists(outroot):
+    os.makedirs(outroot)
+name_fin = outroot+"data_igrins.pkl"
 
 ### Get all data to read
 specfilesH=sorted(glob.glob(dir_data+'*SDCH*spec.fits'))
