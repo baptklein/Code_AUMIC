@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on 03/2022 12:54:11 2021
+Created in Mar 2022
+Edited in Jun 2022
 
-@author: Baptiste & Florian
+@author: Baptiste KLEIN & Annabella MEECH
 """
 import numpy as np
 import sys
@@ -24,6 +25,7 @@ P        = 8.463000 # period in days
 t0       = 2458330.39051 # known mid-transit time in JD
 dir_data = "Data/IGRINS/"   #Sep18 #Jun19
 
+c0 = Constants().c0
 
 ### Transit parameters -- Compute the transit window
 ### Using batman python package https://lweb.cfa.harvard.edu/~lkreidberg/batman/
@@ -59,7 +61,7 @@ varfilesH=sorted(glob.glob(dir_data+'*SDCH*variance.fits'))
 varfilesK=sorted(glob.glob(dir_data+'*SDCK*variance.fits'))
 snfilesH=sorted(glob.glob(dir_data+'*SDCH*sn.fits'))
 snfilesK=sorted(glob.glob(dir_data+'*SDCK*sn.fits'))
-if not len(specfilesH)==len(varfilesH)==len(specfilesK)==len(varfilesK): print(False)
+assert len(specfilesH)==len(varfilesH)==len(specfilesK)==len(varfilesK), "Unequal no. of H and K files"
 print('number of files: {}'.format(len(specfilesH)))
 
 
@@ -202,7 +204,6 @@ for zz in range(nord):
 
 
 
-c0 = 299792.458
 for nn in range(len(W_corr)):
     WW   = W_corr[nn]
     WM   = np.mean(WW)
@@ -212,8 +213,7 @@ for nn in range(len(W_corr)):
 
 
 # compute barycentric correction
-print('')
-print('compute barycentric velocities')
+print("\ncompute barycentric velocities")
 gemini = EarthLocation.from_geodetic(lat=-30.2407*u.deg, lon=-70.7366*u.deg, height=2715*u.m) #IGRINS
 sc = SkyCoord('20h45m09.5324974119s', '-31d20m27.237889841s') # AUMic
 barycorr = sc.radial_velocity_correction('barycentric',obstime=Time(time_MJD,format='mjd'), location=gemini)
@@ -229,7 +229,7 @@ Vc           = V0 + Vp - vbary   #Geocentric-to-barycentric correction
 ### Plot transit information
 plot = True
 if plot:
-    print("\nPlot transit")
+    print("\nplot transit")
     TT     = 24.*(time_JD - t0)
     ypad   = 15  # pad of the y label
     plt.figure(figsize=(15,12))
@@ -262,5 +262,4 @@ orders   = np.arange(len(SN))
 savedata = (orders,W_corr,I_corr,np.zeros_like(data_RAW),np.zeros_like(data_RAW),time_JD,phase,window,vbary,V0+Vp,airms,SN)
 with open(name_fin, 'wb') as specfile:
     pickle.dump(savedata,specfile)
-print('')
-print('Finished.')
+print("\nFINISHED.")
