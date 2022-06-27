@@ -41,8 +41,10 @@ nam_info = outroot+"info_1.dat"
 #           - airmass:Airmass values
 #           - SN:     Signal-to-noise values for each order [N_order,N_obs]
 print("Read data from",filename)
+
 with open(filename,'rb') as specfile:
-    orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = pickle.load(specfile)
+    A = pickle.load(specfile)
+orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 
 
 ### Data reduction parameters
