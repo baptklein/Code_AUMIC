@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on 03/2022 12:54:11 2021
-
-@author: Baptiste & Florian
+Created in Mar 2022
+Edited in Jun 2022
+@authors: Baptiste KLEIN, Florian DEBRAS & Annabella MEECH
 """
 import numpy as np
 import sys
@@ -20,13 +20,21 @@ from scipy import ndimage
 
 
 
+species = ['H2O','CO','CH4'] # edit to include species in model
+sp = '_'.join(i for i in species)
+solar = '1x'
+model_dir  = 'pRT_models/'
+model_dir += '{:s}_{}Solar_{}_R1M/'.format(args.planet,solar,sp)
 
 
-name_model = "Model/Mod_boucher.txt"
-name_wav   = "Model/Wave_boucher.txt"
-filename   = sys.argv[1]  #"Results/New/Sep18/reduced_sep18.pkl"
-nam_fig    = sys.argv[2] #"Results/New/Sep18/correl_sep18.png"
-nam_res    = sys.argv[3] #"Results/New/Sep18/correl_sep18.pkl"
+
+
+
+#name_model = "Model/Mod_boucher.txt"
+#name_wav   = "Model/Wave_boucher.txt"
+#filename   = sys.argv[1]  #"Results/New/Sep18/reduced_sep18.pkl"
+#nam_fig    = sys.argv[2] #"Results/New/Sep18/correl_sep18.png"
+#nam_res    = sys.argv[3] #"Results/New/Sep18/correl_sep18.pkl"
 
 
 Rs         = 261413.0   # Stellar radius [km]
@@ -134,17 +142,3 @@ plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20)
 
 ### Get and display statistics
 p_best,K_best,K_sup,K_inf,V_best,V_sup,V_inf = get_statistics(Vsys,Kp,sig_fin)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
