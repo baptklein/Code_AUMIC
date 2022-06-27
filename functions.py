@@ -4,7 +4,7 @@
 Created in Mar 2022
 Edited in Jun 2022
 
-@author: Baptiste KLEIN & Annabella MEECH
+@author: Baptiste KLEIN, Florian DEBRAS & Annabella MEECH
 """
 import numpy as np
 import os
@@ -281,7 +281,7 @@ def move_spec(V,I,Vc,sig_g):
                     - I:     Array of flux values (assumed 2D [N_obs,N_wav])
                     - Vc:    Velocimetry correction [km/s]
                     - pixel: Binned instrument pixel in wavelength space
-                    - kind:  kind of interpolatation (scipy interp1D)
+                    - kind:  type of interpolatation (scipy interp1D)
 
 
     --> Outputs:    - I_al:  2D matrix of Vc-corrected spectra
