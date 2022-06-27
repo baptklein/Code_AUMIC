@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created in Nov 2020
-Edited in May 2022
+Edited in Jun 2022
 @authors: Baptiste KLEIN, Annabella MEECH
 run with python3610 (or python368) on TITAN
 """
