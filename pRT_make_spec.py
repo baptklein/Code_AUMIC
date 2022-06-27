@@ -13,6 +13,7 @@ run with python3610 (or python368) on TITAN
 ### Goals:
 #   Generate a 1D planet atmosphere template for each order using the petitRADTRANS python module
 #   https://petitradtrans.readthedocs.io/en/latest/
+#   Produces model of R~10^6
 
 ### Inputs:
 #   - Rp: planet radius (Rjup)
@@ -38,6 +39,8 @@ run with python3610 (or python368) on TITAN
 
 #     Before using the code --> Create a repository called 'Model' to store the planet atmosphere template generated
 #     WARNING: The planet atmosphere template are not normalized
+
+#     Adjust abundances below
 
 # ----------------------------------------------------------------------------------------------------------- #
 
@@ -86,7 +89,7 @@ if __name__=="__main__":
     parser.add_argument("--wmin", type=float, default=1.2, help='min wlen (um)')
     parser.add_argument("--wmax", type=float, default=2.5, help='max wlen (um)')
     parser.add_argument("--wlens-file", type=str, default=None, help='path to wlen file, overrules wmin/max (um)')
-    parser.add_argument("--species", type=str, default=['CO_all_iso'], nargs='+', \
+    parser.add_argument("--species", type=str, default=['H2'], nargs='+', \
         help='lbl species, see https://petitradtrans.readthedocs.io/en/latest/content/available_opacities.html for full list')
 
 
@@ -94,7 +97,8 @@ if __name__=="__main__":
     args = parser.parse_args()
 
     # Create directory for models
-    save_dir = '{:s}_pRTmodels/'.format(args.planet)
+    #save_dir = '{:s}_pRTmodels/'.format(args.planet)
+    save_dir = 'pRT_models/'
     if not os.path.exists(save_dir): os.makedirs(save_dir)
 
     # ----------------------------------------------------------------------------------------------------------- #
@@ -118,17 +122,26 @@ if __name__=="__main__":
         temperature = Teff*(Tint^4+Teq^4)**0.25 * np.ones_like(pressures)
     else:
         temperature  = Teq * np.ones_like(pressures)
-    MMW          = mmw * np.ones_like(temperature)
+    MMW       = mmw * np.ones_like(temperature)
 
     ### lbl species  --  for petitRADTRANS
     #LS = ['H2O_main_iso','CO_all_iso','NH3_main_iso','CO2_main_iso','CH4_main_iso','HCN_main_iso']
-    LS        = args.species
-    print(LS)
+    species   = args.species
+    LS        = []
+    if 'CO' in species: LS.append('CO_all_iso')
+    if 'H2O' in species: LS.append('H2O_main_iso')
+    if 'CO2' in species: LS.append('CO2_main_iso')
+    if 'CH4' in species: LS.append('CH4_main_iso')
+    if 'HCN' in species: LS.append('HCN_main_iso')
+    if 'NH3' in species: LS.append('NH3_main_iso')
+    if 'H2' in species: LS.append('H2_main_iso')
+    print("\nIncluding species: {}".format(LS))
 
     t0 = time.time()
-    print("Initialise model")
+    print("\nInitialise model")
 
-    ### Abundances in MASSIVE FRACTIONS
+    ### Abundances in MASSIVE FRACTIONS - set to solar
+    solar = '1x'
     abundances                   =  {}
     abundances['H2']             =  0.71 * np.ones_like(pressures)
     abundances['He']             =  0.27 * np.ones_like(pressures)
@@ -164,6 +177,11 @@ if __name__=="__main__":
         ndet = 1
         det = [1]
 
+
+    # specfic directory for these models
+    sp = '_'.join(i for i in species)
+    save_dir += '{:s}_{}Solar_{}_R1M/'.format(args.planet,solar,sp)
+    if not os.path.exists(save_dir): os.makedirs(save_dir)
     # ----------------------------------------------------------------------------------------------------------- #
     ####### MAIN LOOP - COMPUTE MODEL FOR EACH ORDER
     # ----------------------------------------------------------------------------------------------------------- #
