@@ -19,15 +19,21 @@ from correlation_fcts import *
 from scipy import ndimage
 
 
+# model files
+species     = ['H2O','CO','CH4'] # edit to include species in model
+sp          = '_'.join(i for i in species)
+solar       = '1x'
+model_dir   = 'pRT_models/'
+model_dir  += '{:s}_{}Solar_{}_R1M/'.format(args.planet,solar,sp)
 
-species = ['H2O','CO','CH4'] # edit to include species in model
-sp = '_'.join(i for i in species)
-solar = '1x'
-model_dir  = 'pRT_models/'
-model_dir += '{:s}_{}Solar_{}_R1M/'.format(args.planet,solar,sp)
+# data files
+data_dir    = 'Input_data/'
+filename    = data_dir+"reduced_1.pkl"
 
-
-
+# results file
+save_dir    = 'xcorr_result/'
+nam_res     = save_dir+'{:s}_{}Solar_{}_R1M.pkl'.format(args.planet,solar,sp)
+nam_fig     = save_dir+'{:s}_{}Solar_{}_R1M.png'.format(args.planet,solar,sp)
 
 
 #name_model = "Model/Mod_boucher.txt"
