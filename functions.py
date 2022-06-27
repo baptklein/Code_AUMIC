@@ -4,7 +4,7 @@
 Created in Mar 2022
 Edited in Jun 2022
 
-@author: Baptiste KLEIN, Florian DEBRAS & Annabella MEECH
+@authors: Baptiste KLEIN, Florian DEBRAS & Annabella MEECH
 """
 import numpy as np
 import os
