@@ -145,12 +145,12 @@ if __name__=="__main__":
     abundances                   =  {}
     abundances['H2']             =  0.71 * np.ones_like(pressures)
     abundances['He']             =  0.27 * np.ones_like(pressures)
-    abundances['H2O']            =  1e-3 * np.ones_like(pressures)
+    abundances['H2O_main_iso']            =  1e-3 * np.ones_like(pressures)
     abundances['CO_all_iso']     =  1e-3 * np.ones_like(pressures)
     abundances['NH3']            =  2.2e-5* np.ones_like(pressures)
-    abundances['CO2']            =  1e-4 * np.ones_like(pressures)
-    abundances['CH4']            =  1e-3 * np.ones_like(pressures)
-    abundances['HCN']            =  1.1e-4* np.ones_like(pressures)
+    abundances['CO2_main_iso']            =  1e-4 * np.ones_like(pressures)
+    abundances['CH4_main_iso']            =  1e-3 * np.ones_like(pressures)
+    abundances['HCN_main_iso']            =  1.1e-4* np.ones_like(pressures)
 
     #abundances['CO_all_iso']     = 0.012* np.ones_like(pressures)
     #abundances['NH3_main_iso']   = 2.2 * 10**(-5) * np.ones_like(pressures)
@@ -164,12 +164,26 @@ if __name__=="__main__":
     # ----------------------------------------------------------------------------------------------------------- #
     if args.wlens_file is not None:
         rep_wave   = args.wlens_file   ## Name of the input file listing the order nb, min/max/mean wavelengths for each order
-        A          = np.loadtxt(rep_wave,skiprows=1) # assuming these are table, including wlens FOR EACH ORDER
-        det        = np.array(A[:,0],dtype=int)
-        ndet = len(det)
-        W_min      = A[:,1]
-        W_max      = A[:,2]
-        Wm         = A[:,3]
+        #A          = np.loadtxt(rep_wave,skiprows=1) # assuming these are table, including wlens FOR EACH ORDER
+        #det        = np.array(A[:,0],dtype=int)
+        #ndet       = len(det)
+        #W_min      = A[:,1]
+        #W_max      = A[:,2]
+        #Wm         = A[:,3]
+        A          = pickle.load(open(rep_wave,'rb'))
+        ndet       = len(A)
+        W_min      = []
+        W_max      = []
+        for idet in range(ndet):
+            W_min.append(A[idet][0])
+            W_max.append(A[idet][-1])
+        W_min      = np.array(W_min)
+        W_max      = np.array(W_max)
+        W_min /= 1e3 #convert to um
+        W_max /= 1e3
+        Wm         = (W_min+W_max)/2 # not needed?
+        det        = np.arange(ndet) # at some point edit this to correspond to actual order numbers
+
     else:
         W_min = args.wmin
         W_max = args.wmax
