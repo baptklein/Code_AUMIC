@@ -15,9 +15,18 @@ run with python3610 (or python368) on TITAN
 #   https://petitradtrans.readthedocs.io/en/latest/
 
 ### Inputs:
-#   - Change the parameters below
-#   - A file containing the list of [Order_nb Lamb_min Lamb_max Lamb_mean] used to compute velocity vector as
-#     well as defining the limit for the computation of each order
+#   - Rp: planet radius (Rjup)
+#   - Rs: stellar radius (Rsun)
+#   - logg: surface gravity (cgs)
+#   - Teq: planet equilibrium temp (K)
+#   - Teff: stellar effective temp (K)
+#   - Tint: planet interior temp (K)
+#   - mmw: mean molecular weight (cgs)
+#   - wmin: min wlen (um)
+#   - wmax: max wlen (um)
+#   - wlens-file: path to wlen file, overrules wmin/max (um)
+#   - species: a list of high-res line lists to include in model
+
 
 ### Modules
 #   - Standard python modules: numpy and time
