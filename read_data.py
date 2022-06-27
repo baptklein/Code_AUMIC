@@ -47,6 +47,7 @@ outroot = "Input_data/"
 if not os.path.exists(outroot):
     os.makedirs(outroot)
 name_fin = outroot+"data_igrins.pkl"
+wlen_fin = outroot+'wlens_igrins.pkl'
 
 
 time_JD, wlens, data_RAW, data_var, data_sn, airms, humidity = read_igrins_data(dir_data)
@@ -180,4 +181,7 @@ orders   = np.arange(len(SN))
 savedata = (orders,W_corr,I_corr,np.zeros_like(data_RAW),np.zeros_like(data_RAW),time_JD,phase,window,vbary,V0+Vp,airms,SN)
 with open(name_fin, 'wb') as specfile:
     pickle.dump(savedata,specfile)
+# save wlens in a separate file
+with open(wlen_fin, 'wb') as wlenfile:
+    pickle.dump(W_corr,wlenfile)
 print("\nFINISHED.")
