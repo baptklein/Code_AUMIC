@@ -24,7 +24,7 @@ species     = ['H2O','CO','CH4'] # edit to include species in model
 sp          = '_'.join(i for i in species)
 solar       = '1x'
 model_dir   = 'pRT_models/'
-model_dir  += '{}Solar_{}_R1M/'.format(solar,sp)
+model_dir  += 'aumicb_{}Solar_{}_R1M/'.format(solar,sp)
 # model_dir contains separate models for each order (from pRT_make_spec.py)
 
 # data files
