@@ -32,6 +32,8 @@ filename    = data_dir+"reduced_1.pkl"
 
 # results file
 save_dir    = 'xcorr_result/'
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
 nam_res     = save_dir+'{}Solar_{}_R1M.pkl'.format(solar,sp)
 nam_fig     = save_dir+'{}Solar_{}_R1M.png'.format(solar,sp)
 
@@ -68,7 +70,7 @@ nord     = len(orders)
 
 ### Select orders for the correlation
 ord_sel    = orders
-V_shift    =  vstar - berv
+V_shift    = vstar - berv
 
 
 print(V_shift)
