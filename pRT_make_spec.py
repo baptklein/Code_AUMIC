@@ -86,9 +86,10 @@ if __name__=="__main__":
     parser.add_argument("--Teff", type=int, default=None, help='stellar effective temp (K)')
     parser.add_argument("--Tint", type=int, default=None, help='planet interior temp (K)')
     parser.add_argument("--mmw", type=float, required=True, help='mean molecular weight (cgs)')
-    parser.add_argument("--wmin", type=float, default=1.2, help='min wlen (um)')
-    parser.add_argument("--wmax", type=float, default=2.5, help='max wlen (um)')
-    parser.add_argument("--wlens-file", type=str, default=None, help='path to wlen file, overrules wmin/max (um)')
+    parser.add_argument("--wmin", type=float, default=1.2, help='min wlen (um), use for a single model')
+    parser.add_argument("--wmax", type=float, default=2.5, help='max wlen (um), use for a single model')
+    parser.add_argument("--wlens-file", type=str, default=None, \
+        help='path to wlen file, overrules wmin/max (um), can use for order_by_order models')
     parser.add_argument("--species", type=str, default=['H2'], nargs='+', \
         help='lbl species, see https://petitradtrans.readthedocs.io/en/latest/content/available_opacities.html for full list')
 
