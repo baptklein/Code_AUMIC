@@ -19,8 +19,8 @@ from functions import *
 # Compute the correlation map in the (Kp,Vsys) space
 # For each SPIRou order, compute the correlation coefficient
 # between the reduced sequence of spectra and a sequence of
-# synthetic spectra shifted according to the planet RV on a (Kp,Vsys) 
-# grid. 
+# synthetic spectra shifted according to the planet RV on a (Kp,Vsys)
+# grid.
 # To gain time in the correlation process, we pre-compute a grid
 # of sequence of synthetic spectra that we use in the correlation
 # computation.
@@ -36,16 +36,16 @@ def compute_correlation(list_ord,window,phase,Kp,Vsys,V_shift):
 
     --> Outputs:    - correl:   Map of correlation coefficients between the observed and synthetic
                                 spectra (2D matrix with N_Kp, N_Vsys)
-                    
+
     """
-    
+
     t0           = time.time()
     c0           = Constants().c0
     pixel_window = np.linspace(-1.14,1.14,10)          ### grid to integrate interpolated model over a SPIRou pixel
     weights      = scipy.signal.gaussian(10,std=1.14)  ### Gaussian profile centered on 0.0 (for pixel integration)
 
     ### INITIALISATION
-    print("\nInitialization") 
+    print("\nInitialization")
     data_tot = []
     wl       = []
     Stdtot   = []
@@ -55,53 +55,53 @@ def compute_correlation(list_ord,window,phase,Kp,Vsys,V_shift):
     for kk in range(nord_tmp):                           # For each order:
         std_px = list_ord[kk].I_pca.std(axis=0)          # Dispersion of each pixel along the time axis
         fit_px = np.polyfit(list_ord[kk].W_fin,std_px,2) # Fit polynomial of order 2 to the distribution (blaze function)
-        Stdfit = np.poly1d(fit_px)                       
+        Stdfit = np.poly1d(fit_px)
         Stdtot.append(Stdfit(list_ord[kk].W_fin))        # Store best-fitting solution
         SNRtot.append(list_ord[kk].SNR)
         wl.append(list_ord[kk].W_fin)                    # Store wavelength solution
         data_tot.append(list_ord[kk].I_pca)              # Store spectra (reduced, after PCA reduction)
         f = interp.interp1d(list_ord[kk].Wm,list_ord[kk].Im) # Interpolate the planet atmosphere template
         F.append(f)
-        
-        
-        
+
+
+
 
     # In order to gain time in the correlation process, we pre-compute the grid of models at the resolution of the data
     print("Interpolate model")
-    
+
     gri      = []
     for i in range(len(Kp)):
         for j in range(len(Vsys)):
             gri.append(Kp[i]*np.sin(2.0*np.pi*np.array(phase,dtype=float))+Vsys[j] + np.array(V_shift,dtype=float))
-    gri      = np.array(gri,dtype=float)  
+    gri      = np.array(gri,dtype=float)
     MM       = np.max([np.abs(gri.min()),np.abs(gri.max())])
-    Vtot     = np.linspace(-1.01*MM,1.01*MM,500)    
-    
-    
-    F2D      = []   
+    Vtot     = np.linspace(-1.01*MM,1.01*MM,500)
+
+
+    F2D      = []
     for i in range(nord_tmp):
         mod_int = np.zeros((len(Vtot),len(wl[i])))
         for j in range(len(Vtot)):
             mod_int[j]= np.average(F[i](list(map(lambda x: wl[i]/(1.0+(Vtot[j]+x)/c0),pixel_window))),weights=weights,axis=0)
         f2D = interp.interp1d(Vtot,mod_int.T,kind='linear')
         F2D.append(f2D)
-        
-        
+
+
     ### Increase the speed of the correlation
     pos     = np.where(np.array(window)>0.5)[0]
     phase2  = np.array(phase)[pos]
     window2 = np.array(window)[pos]
     Vshift2 = np.array(V_shift)[pos]
     correl  = np.zeros((len(Kp),len(Vsys),len(list_ord),len(phase2)))
-    
 
-        
+
+
     #And now the correlation, following boucher et al. 2021
-    print("Compute correlation for",nord_tmp,"orders")  
+    print("Compute correlation for",nord_tmp,"orders")
     nbor = 50
     for ii in range(len(Kp)):
-        for jj in range(len(Vsys)):    
-            vp             = Kp[ii]*np.sin(2.0*np.pi*phase2)+Vsys[jj] + Vshift2        
+        for jj in range(len(Vsys)):
+            vp             = Kp[ii]*np.sin(2.0*np.pi*phase2)+Vsys[jj] + Vshift2
             for no in range(len(list_ord)):
                 interpmod      = F2D[no](vp)
                 modelij        = interpmod[nbor:-nbor]-np.mean(interpmod[nbor:-nbor],axis=0)
@@ -120,7 +120,7 @@ def compute_correlation(list_ord,window,phase,Kp,Vsys,V_shift):
 # -----------------------------------------------------------
 # Compute the typical noise dispersion in a correlation map:
 # (i)   Combine the correlation maps associated to an input list of orders
-# (ii)  Select a region where "no planetary signal is present" from the 
+# (ii)  Select a region where "no planetary signal is present" from the
 #       combined correlation map
 # (iii) Compute and return the dispersion of the selected map
 # -----------------------------------------------------------
@@ -135,20 +135,20 @@ def get_snrmap(orders_fin,Kp,Vsys,correl,Kp_lim=[120,180],Vsys_lim=[-15.,15.]):
                     - Vsys_lim: Vsys range to be excluded when compute the noise level (list of 2 values)
 
     --> Outputs:    - snrmap: Estimated noise dispersion in the correlation map
-                    
+
     """
 
     # Select orders to combine
     sel = []
     for i in orders_fin:
         sel.append(np.where(np.array(orders_fin,dtype=int)==i)[0][0])
-    a      = np.sum(np.sum(correl[:,:,sel],axis=3),axis=2)                     # Get correlation map for the orders 
+    a      = np.sum(np.sum(correl[:,:,sel],axis=3),axis=2)                     # Get correlation map for the orders
     b      = a[np.where((Kp<Kp_lim[0])|(Kp>Kp_lim[1]))]            # Exclude Kp range
     c      = b.T[np.where((Vsys<Vsys_lim[0])|(Vsys>Vsys_lim[1]))]  # Exclude Vsys range
     snrmap = np.std(c)                                             # Compute disperion
     return snrmap
 
-    
+
 
 
 
@@ -170,7 +170,7 @@ def multi_var(param,X,Y):
 
 
     --> Outputs:    - 2D normal law in the (X,Y) space
-                    
+
     """
 
     amp = param[0]
@@ -204,7 +204,7 @@ def crit(param,X,Y,C):
                     - C: Data
 
     --> Outputs:    - Norm 2 of the residuals between observed map C and 2D bivariate Gaussian map for param, X and Y
-                    
+
     """
     mv = multi_var(param,X,Y)
     cr = np.linalg.norm(C-mv) ### 2-norm
@@ -213,7 +213,7 @@ def crit(param,X,Y,C):
 
 
 # -----------------------------------------------------------
-# Fit a 2D bivariate normal distribution to an observed map C 
+# Fit a 2D bivariate normal distribution to an observed map C
 # -----------------------------------------------------------
 def fit_multivar(x,y,C):
 
@@ -224,7 +224,7 @@ def fit_multivar(x,y,C):
 
     --> Outputs:    - p_best: best set of parameters (see the parameter description in "crit" function
                     - mv_best: Best-fitting biariate normal law (2D matrix in the (x,y) plane)
-                    
+
     """
 
     # Inital set of parameters
@@ -250,7 +250,7 @@ def fit_multivar(x,y,C):
 # Get statistics on an input significance map:
 # - Compute best estimates of Kp and Vsys
 # - Estimate maximum significance
-# - First rough estimate of errorbars on Kp and Vsys 
+# - First rough estimate of errorbars on Kp and Vsys
 # -----------------------------------------------------------
 def get_statistics(x,y,C):
 
@@ -263,12 +263,12 @@ def get_statistics(x,y,C):
                     - Kp_best: Best estimate of Kp [km/s)
                     - K_sup: Upper uncertainty on Kp [km/s]
                     - K_inf: Lower uncertainty on Kp [km/s]
-                    - V_best: Best estimate on Vsys 
+                    - V_best: Best estimate on Vsys
                     - V_sup: Upper uncertainty on Vsys [km/s]
                     - V_inf: Lower uncertainty on Vsys [km/s]
 
     """
-    
+
     # Start by fitting a bivariate normal law on the significance map C
     p_best,mv_best = fit_multivar(x,y,C)
 
@@ -303,7 +303,7 @@ def get_statistics(x,y,C):
     ii    = ib2
     while mv_tot[ii,ib1]>sn_max-1.0 and ii>0: ii-=1
     if ii == 0: print("\n\nWARNING -- Window too small -- Underestimation of error bars\n\n")
-    K_inf = Kp_best-Kp_big[ii]     
+    K_inf = Kp_best-Kp_big[ii]
     ii    = ib1
     while mv_tot[ib2,ii]>sn_max-1.0 and ii<len(V_big)-1: ii+=1
     if ii == len(V_big)-1: print("\n\nWARNING -- Window too small -- Underestimation of error bars\n\n")
@@ -311,7 +311,7 @@ def get_statistics(x,y,C):
     ii    = ib1
     while mv_tot[ib2,ii] > sn_max-1.0 and ii>0: ii -= 1
     if ii == 0: print("\n\nWARNING -- Window too small -- Underestimation of error bars\n\n")
-    V_inf = V_best-V_big[ii]        
+    V_inf = V_best-V_big[ii]
 
     # Display results
     print("Best estimates:")
@@ -377,5 +377,3 @@ def plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_inj=0.0,K_inj=0.0,cmap="gist_h
 
         plt.savefig(nam_fig,bbox_inches="tight")
         plt.close()
-
-
