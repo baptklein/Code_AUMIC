@@ -199,6 +199,7 @@ if __name__=="__main__":
     sp = '_'.join(i for i in species)
     save_dir += '{:s}_{}Solar_{}_R1M/'.format(args.planet,solar,sp)
     if order_by_order:
+        print('\ncomputing a single model for each order')
         save_dir += 'order_by_order/'
     if not os.path.exists(save_dir): os.makedirs(save_dir)
     # ----------------------------------------------------------------------------------------------------------- #
