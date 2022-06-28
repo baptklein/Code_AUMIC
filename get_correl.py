@@ -25,7 +25,9 @@ sp          = '_'.join(i for i in species)
 solar       = '1x'
 model_dir   = 'pRT_models/'
 model_dir  += 'aumicb_{}Solar_{}_R1M/'.format(solar,sp)
-# model_dir contains separate models for each order (from pRT_make_spec.py)
+order_by_order = False # turn off these models for the moment (may be more efficient in future)
+if order_by_order:
+    model_dir += 'order_by_order/'
 
 # data files
 data_dir    = 'Input_data/'
@@ -86,29 +88,31 @@ for nn in range(nord):
     O.SNR    = np.array(SN[nn],dtype=float)
     O.W_mean = O.W_fin.mean()
 
-    # load model for each order
-    mod_file = model_dir+ 'template_det' +str(orders[nn]) + '.pic'
-    wlens,DF = pickle.load(open(mod_file,'rb'))
-    O.Wm     = wlens
-    O.Im     = DF
+    if order_by_order:
+        # load model for each order
+        mod_file = model_dir + 'template_det' +str(orders[nn]) + '.pic'
+        mwlens,DF = pickle.load(open(mod_file,'rb'))
+        O.Wm     = mwlens
+        O.Im     = DF
     list_ord.append(O)
 print("DONE\n")
 
 
-# Use the (commented out) below for a global model
-# Not needed here as pRT_make_spec() produces a model for each order
+# Use the below for a single global model
 #W_mod,I_mod    = np.loadtxt(name_wav),np.loadtxt(name_model)
 #T_depth        = np.copy(I_mod)
 #T_depth        = 1 - (I_mod/(1e5))**(2) / Rs**(2)
 #maxf           = ndimage.maximum_filter(T_depth,size=10000)
-#T_depth       /= maxf
 
-#for kk,O in enumerate(list_ord):
-#    Wmin,Wmax = 0.95*O.W_fin.min(),1.05*O.W_fin.max()
-#    indm      = np.where((W_mod>Wmin)&(W_mod<Wmax))[0]
-#    W_sel     = W_mod[indm]
-#    O.Wm      = W_sel
-#    O.Im      = T_depth[indm]
+if not order_by_order:
+    mod_file = model_dir + 'template_det1.pic'
+    mwlens,DF = pickle.load(open(mod_file,'rb'))
+    for kk,O in enumerate(list_ord):
+        Wmin,Wmax = 0.95*O.W_fin.min(),1.05*O.W_fin.max()
+        indm      = np.where((W_mod>Wmin)&(W_mod<Wmax))[0]
+        W_sel     = W_mod[indm]
+        O.Wm      = W_sel
+        O.Im      = T_depth[indm]
 
 
 ### Correlation
