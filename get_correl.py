@@ -20,7 +20,7 @@ from scipy import ndimage
 
 
 # model files
-species     = ['H2O','CO','CH4'] # edit to include species in model
+species     = ['H2O','CO','CO2'] # edit to include species in model
 sp          = '_'.join(i for i in species)
 solar       = '1x'
 model_dir   = 'pRT_models/'
@@ -84,6 +84,7 @@ list_ord = []
 for nn in range(nord):
     O        = Order(orders[nn])
     O.W_fin  = np.array(WW[nn],dtype=float)
+    O.W_fin  /= 1e3 # hack to convert to um (make universal later)
     O.I_pca  = np.array(Ir[nn],dtype=float)
     O.SNR    = np.array(SN[nn],dtype=float)
     O.W_mean = O.W_fin.mean()
