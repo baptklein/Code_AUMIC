@@ -91,9 +91,9 @@ for nn in range(nord):
     if order_by_order:
         # load model for each order
         mod_file = model_dir + 'template_det' +str(orders[nn]) + '.pic'
-        mwlens,DF = pickle.load(open(mod_file,'rb'))
-        O.Wm     = mwlens
-        O.Im     = DF
+        W_mod,T_depth = pickle.load(open(mod_file,'rb'))
+        O.Wm     = W_mod
+        O.Im     = T_depth
     list_ord.append(O)
 print("DONE\n")
 
@@ -106,7 +106,7 @@ print("DONE\n")
 
 if not order_by_order:
     mod_file = model_dir + 'template_det1.pic'
-    mwlens,DF = pickle.load(open(mod_file,'rb'))
+    W_mod,T_depth = pickle.load(open(mod_file,'rb'))
     for kk,O in enumerate(list_ord):
         Wmin,Wmax = 0.95*O.W_fin.min(),1.05*O.W_fin.max()
         indm      = np.where((W_mod>Wmin)&(W_mod<Wmax))[0]
