@@ -165,6 +165,7 @@ if __name__=="__main__":
     # ----------------------------------------------------------------------------------------------------------- #
     if args.wlens_file is not None:
         rep_wave   = args.wlens_file   ## Name of the input file listing the order nb, min/max/mean wavelengths for each order
+        order_by_order = True
         #A          = np.loadtxt(rep_wave,skiprows=1) # assuming these are table, including wlens FOR EACH ORDER
         #det        = np.array(A[:,0],dtype=int)
         #ndet       = len(det)
@@ -186,6 +187,7 @@ if __name__=="__main__":
         det        = np.arange(ndet) # at some point edit this to correspond to actual order numbers
 
     else:
+        order_by_order = False
         W_min = args.wmin
         W_max = args.wmax
         Wm = (W_min+W_max)/2
@@ -196,6 +198,8 @@ if __name__=="__main__":
     # specfic directory for these models
     sp = '_'.join(i for i in species)
     save_dir += '{:s}_{}Solar_{}_R1M/'.format(args.planet,solar,sp)
+    if order_by_order:
+        save_dir += 'order_by_order/'
     if not os.path.exists(save_dir): os.makedirs(save_dir)
     # ----------------------------------------------------------------------------------------------------------- #
     ####### MAIN LOOP - COMPUTE MODEL FOR EACH ORDER
