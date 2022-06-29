@@ -396,13 +396,20 @@ def cc_time_plot(filename,order,vsys_cut):
     nKp,nVsys,nord,nep = corr.shape
     Kpmin, Kpmax    = Kp.min(),Kp.max()
     dKp = Kp[1]-Kp[0]
-    res     = corr[:,vsys_cut,order,:]
+
+    if len(vsys_cut)>1:
+        # sum over a range
+        v1,v2 = vsys_cut
+        res = np.sum(corr[:,v1:v2,order,:],axis=1)
+    else:
+        vsys_cut = vsys_cut[0]
+        res = corr[:,vsys_cut,order,:]
 
     fig     = plt.figure(figsize=(15,0.05*nep))
     extent  = (Kpmin - 0.5*dKp, Kpmax -0.5*dKp, nep-0.5, 0.5)
     plt.imshow(res,aspect='auto',interpolation='nearest',extent=extent)
     plt.xlabel('Kp (km/s)')
-    plt.ylabel('Frame number')
+    plt.ylabel('Frame number (in transit!)')
     plt.title('Model: ' +filename+', Order: {}'.format(order)+', Vsys_cut: {}'.format(vsys_cut))
     plt.colorbar()
     plt.savefig('xcorr_result/' + filename + '_order{}.png'.format(order))
