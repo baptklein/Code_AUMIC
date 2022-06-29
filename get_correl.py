@@ -20,7 +20,7 @@ from scipy import ndimage
 
 
 # model files
-species     = ['H2O','CO','CO2'] # edit to include species in model
+species     = ['CH4'] # edit to include species in model
 sp          = '_'.join(i for i in species)
 solar       = '1x'
 model_dir   = 'pRT_models/'
