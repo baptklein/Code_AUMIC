@@ -103,9 +103,17 @@ NCF         = np.zeros(nord)
 #### Main reduction
 print("START DATA REDUCTION")
 file = open(nam_info,"w")
-plot_ord = 10 # pick an example order to plot
+plot_all_orders = True
+if not plot_all_orders:
+    plot_ord = 10 # pick an example order to plot
 for nn in range(nord):
-
+    if plot_all_orders:
+        plot=True
+    else:
+        if nn==plot_ord:
+            plot=True
+        else:
+            plot=False
     O         = list_ord[nn]
     print("ORDER",O.number)
 
@@ -134,16 +142,16 @@ for nn in range(nord):
     else:
         print(len(O.W_raw)-len(W_cl),"pts removed from order",O.number,"(",O.W_mean,"nm) -- OK")
 
-        if nn==plot_ord:
-             nep,npix = I_cl.shape
-             fig,axes = plt.subplots(2,1,figsize=(8,4))
-             wmin,wmax = W_cl.min(),W_cl.max()
-             dw = np.average(W_cl[1:]-W_cl[:-1])
-             extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
-             xlabel = 'wavelength (nm)'
-             mp1=axes[0].imshow(I_cl, extent=extent, interpolation='nearest', aspect='auto')
-             fig.colorbar(mp1,ax=axes[0])
-             axes[0].set_title('Order {}'.format(O.number))
+        if plot:
+            nep,npix = I_cl.shape
+            fig,axes = plt.subplots(2,1,figsize=(8,4))
+            wmin,wmax = W_cl.min(),W_cl.max()
+            dw = np.average(W_cl[1:]-W_cl[:-1])
+            extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
+            xlabel = 'wavelength (nm)'
+            mp1=axes[0].imshow(I_cl, extent=extent, interpolation='nearest', aspect='auto')
+            fig.colorbar(mp1,ax=axes[0])
+            axes[0].set_title('Order {}'.format(O.number))
 
 
 
@@ -258,12 +266,12 @@ for nn in range(nord):
             O.SNR_mes     = 1./np.std(O.I_fin[:,indw-N_px:indw+N_px],axis=1)
             O.SNR_mes_pca = 1./np.std(O.I_pca[:,indw-N_px:indw+N_px],axis=1)
 
-            if nn==plot_ord:
+            if plot:
                 mp2=axes[1].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto')
                 fig.colorbar(mp2,ax=axes[1])
                 axes[1].set_xlabel(xlabel)
                 plt.tight_layout()
-                plt.savefig("pca_reduced.png")
+                plt.savefig("pca_reduced_order{}.png".format(O.number))
 
 
         txt = str(O.number) + "  " + str(len(O.W_fin)) + "  " + str(np.mean(O.SNR)) + "  " + str(np.mean(O.SNR_mes)) + "  " + str(np.mean(O.SNR_mes_pca)) + "  " + str(n_com) + "\n"
