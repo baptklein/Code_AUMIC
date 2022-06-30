@@ -75,6 +75,10 @@ nord     = len(orders)
 ord_sel    = orders
 V_shift    = vstar - berv
 
+print('vshift shape: {}'.format(V_shift.shape))
+print('vsys shape: {}'.format(Vsys.shape))
+
+assert False # break for testing
 
 print(V_shift)
 
