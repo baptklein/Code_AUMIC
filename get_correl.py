@@ -73,12 +73,8 @@ nord     = len(orders)
 
 ### Select orders for the correlation
 ord_sel    = orders
-V_shift    = vstar - berv
+V_shift    = vstar - berv # think this has shape (nep), velocity to shift into stellar rest frame
 
-print('vshift shape: {}'.format(V_shift.shape))
-print('vsys shape: {}'.format(Vsys.shape))
-
-assert False # break for testing
 
 print(V_shift)
 
