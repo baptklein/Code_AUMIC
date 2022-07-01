@@ -100,7 +100,7 @@ def compute_correlation(list_ord,window,phase,Kp,Vsys,V_shift):
 
     #And now the correlation, following boucher et al. 2021
     print("Compute correlation for",nord_tmp,"orders")
-    nbor = 50
+    nbor = 50 # remove edge pixels
     for ii in range(len(Kp)):
         for jj in range(len(Vsys)):
             vp             = Kp[ii]*np.sin(2.0*np.pi*phase2)+Vsys[jj] + Vshift2
