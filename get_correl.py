@@ -78,7 +78,7 @@ nord     = len(orders)
 
 ### Select orders for the correlation
 ord_sel    = orders
-V_shift    = vstar - berv
+V_shift    = vstar - berv # think this has shape (nep), velocity to shift into stellar rest frame
 
 
 print(V_shift)
