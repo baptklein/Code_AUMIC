@@ -20,7 +20,7 @@ from scipy import ndimage
 
 
 # model files
-species     = ['CH4'] # edit to include species in model
+species     = ['CO'] # edit to include species in model
 sp          = '_'.join(i for i in species)
 solar       = '1x'
 model_dir   = 'pRT_models/'
@@ -34,12 +34,17 @@ data_dir    = 'Input_data/'
 filename    = data_dir+"reduced_1.pkl"
 
 # results file
-save_dir    = 'xcorr_result/'
+save_dir    = 'xcorr_result/'+'{}Solar_{}_R1M/'.format(solar,sp)
+simple      = True # turn on/off simple pearsonr cross-correlation
+if simple:
+    save_dir += 'pearsonr/'
+    nam_res = save_dir+'corr_velocity.pkl'
+else:
+    nam_res     = save_dir+'boucher_corr_Kp_vsys.pkl'
+    nam_fig     = save_dir+'Kp_vsys_map_ALLorders.png'
+
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
-nam_res     = save_dir+'{}Solar_{}_R1M.pkl'.format(solar,sp)
-nam_fig     = save_dir+'{}Solar_{}_R1M.png'.format(solar,sp)
-
 
 #name_model = "Model/Mod_boucher.txt"
 #name_wav   = "Model/Wave_boucher.txt"
@@ -115,49 +120,58 @@ if not order_by_order:
         O.Wm      = W_sel
         O.Im      = T_depth[indm]
 
+vtot = np.linspace(-200, 200, 100)
 
-### Correlation
-ind_sel = []
-for kk,oo in enumerate(list_ord):
-    if oo.number in ord_sel: ind_sel.append(kk)
-corr = compute_correlation(np.array(list_ord)[ind_sel],window,phase,Kp,Vsys,V_shift)
+if simple:
+    print("\nRunning pearsonr cross-correlation.")
+    # for now during testing phase - note these plots include out of transit epochs
+    #----
+    vsys_time,vsys_kp = simple_correlation(np.array(list_ord),window,phase,Kp,vtot,\
+                        plot=True,savedir=save_dir)
 
+    savedata = (vsys_time,vsys_kp)
+    with open(nam_res, 'wb') as specfile:
+        pickle.dump(savedata,specfile)
+    print("DONE")
+    #----
+else:
+    ### Correlation
+    ind_sel = []
+    for kk,oo in enumerate(list_ord):
+        if oo.number in ord_sel: ind_sel.append(kk)
+    corr = compute_correlation(np.array(list_ord)[ind_sel],window,phase,Kp,Vsys,V_shift)
 
-
-
-#### Compute statistics and plot the map
-# Indicate regions to exclude when computing the NOISE level from the correlation map
-Kp_lim      = [80.0,160.0]   # Exclude this Kp range we
-Vsys_lim    = [-15.,15.]
-snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr,Kp_lim,Vsys_lim)
-sig_fin     = np.sum(np.sum(corr[:,:,ind_sel,:],axis=3),axis=2)/snrmap_fin
-
-
-
-
-
-### Plot correlation + 1D cut
-K_cut   = 120.2
-V_cut   = 0.0
-ind_v   = np.argmin(np.abs(Vsys-V_cut))
-ind_k   = np.argmin(np.abs(Kp-K_cut))
-sn_map  = sig_fin
-sn_cutx = sn_map[:,ind_v]
-sn_cuty = sn_map[ind_k]
-cmap    = "gist_heat"
-
-### Save data
-savedata = (Vsys,Kp,corr,sn_map)
-with open(nam_res, 'wb') as specfile:
-    pickle.dump(savedata,specfile)
-print("DONE")
-
-plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20)
-#plot_correlation_map(Vsys,Kp,sn_map,nam_fig,K_cut,V_cut,cmap,sn_cutx,sn_cuty,20)
+    #### Compute statistics and plot the map
+    # Indicate regions to exclude when computing the NOISE level from the correlation map
+    Kp_lim      = [80.0,160.0]   # Exclude this Kp range we
+    Vsys_lim    = [-15.,15.]
+    snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr,Kp_lim,Vsys_lim)
+    sig_fin     = np.sum(np.sum(corr[:,:,ind_sel,:],axis=3),axis=2)/snrmap_fin
 
 
 
+    ### Plot correlation + 1D cut
+    K_cut   = 120.2
+    V_cut   = 0.0
+    ind_v   = np.argmin(np.abs(Vsys-V_cut))
+    ind_k   = np.argmin(np.abs(Kp-K_cut))
+    sn_map  = sig_fin
+    sn_cutx = sn_map[:,ind_v]
+    sn_cuty = sn_map[ind_k]
+    cmap    = "gist_heat"
+
+    ### Save data
+    savedata = (Vsys,Kp,corr,sn_map)
+    with open(nam_res, 'wb') as specfile:
+        pickle.dump(savedata,specfile)
+    print("DONE")
+
+    plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20)
+    #plot_correlation_map(Vsys,Kp,sn_map,nam_fig,K_cut,V_cut,cmap,sn_cutx,sn_cuty,20)
 
 
-### Get and display statistics
-p_best,K_best,K_sup,K_inf,V_best,V_sup,V_inf = get_statistics(Vsys,Kp,sig_fin)
+
+
+
+    ### Get and display statistics
+    p_best,K_best,K_sup,K_inf,V_best,V_sup,V_inf = get_statistics(Vsys,Kp,sig_fin)

@@ -7,6 +7,8 @@ Edited in Jun 2022
 
 import numpy as np
 import time
+import os
+import sys
 import matplotlib.pyplot as plt
 import pickle
 import scipy.interpolate as interp
@@ -15,8 +17,90 @@ from scipy import stats
 from scipy.stats import multivariate_normal
 from scipy.optimize import minimize
 from functions import *
+from scipy.stats import pearsonr
+import astropy.constants as aC
+
+def simple_correlation(list_ord,window,phase,Kp,Vtot,plot=False,savedir=None):
+    """
+    --> Inputs:     - list_ord:     List of Order objects (see "src.py")
+                    - window:       Transit window
+                    - phase:        Orbital phase for the planet
+                    - Kp:           Grid of Kp values (1D vector)   --> semi-amplutde of planet RV signal
+                    - Vtot:         Grid of total velocity values (1D vector)
+                    - plot:         If True, will plot cross-correlation maps for each order
+                    - savedir:      A directory in which to save plots (not saved if none set)
+
+    --> Outputs:    - vsys_time:    Map of correlation coefficients between the observed and synthetic
+                                spectra (2D matrix with time, velocity)
+
+    """
+    if plot and savedir is None:
+        sys.exit('No directory defined for plots. Provide savedir.')
+    ### INITIALISATION
+    print("\nInitialization")
+    data_tot = []
+    wl       = []
+    Stdtot   = []
+    SNRtot   = []
+    F        = []
+    nord_tmp = len(list_ord)
+    for kk in range(nord_tmp):
+        wl.append(list_ord[kk].W_fin)                    # Store wavelength solution
+        data_tot.append(list_ord[kk].I_pca)              # Store spectra (reduced, after PCA reduction)
+        f = interp.interp1d(list_ord[kk].Wm,list_ord[kk].Im) # Interpolate the planet atmosphere template
+        F.append(f)
+    dv = Vtot[1]-Vtot[0]
+    dph = np.average(phase[1:]-phase[:-1])
+
+    # find epoch of start/end of transits
+    n_ini     = 0
+    while window[n_ini]==0.0: n_ini += 1
+    n_end     = np.copy(n_ini)
+    while window[n_end]!=0.0: n_end += 1
+    print(n_ini,n_end)
 
 
+    vsys_time = []
+    vsys_kp   = []
+    for no in range(len(list_ord)):
+        ### insert data array here: time on first axis, wavelength on second: data[time, wavelength] ###
+        data = data_tot[no]
+        wavelengths = wl[no]
+
+        nep,npix = data.shape
+
+        ### Do cross correlation ###
+        vsys_time_ = np.zeros((nep, len(Vtot)))
+        for i in range(len(Vtot)):
+            for iep in range(nep):
+                model_flux =  F[no](wavelengths[:] / (1 + (Vtot[i])/Constants().c0) )
+                measured_flux = data[iep,:]
+                vsys_time_[iep,i] = pearsonr(model_flux, measured_flux)[0]
+        ### Stack up in time ###
+        vsys_kp_ = np.zeros((len(Vtot), len(Kp)))
+        ### Creating model of the cross correlation for each time ###
+        f = [ interp.interp1d(Vtot, vsys_time_[k], kind='linear', fill_value='extrapolate') for k in range(nep) ]
+        ### Obtaining cross correlation for kp vs vsys ###
+        for j in range(len(Kp)):
+        	for iep in range(nep):
+        		vsys_kp_[:,j] += f[iep]( Vtot + Kp[j]*np.sin(2*np.pi*phase[iep]) )
+        ### output ###
+        vsys_time.append(vsys_time_)
+        vsys_kp.append(vsys_kp_)
+        ### plots ###
+        if plot:
+            nam_fig = savedir + 'corr_vel_map_order{}.png'.format(no+1)
+            plt.figure(figsize=(12,4))
+            extent = (Vtot.min()-0.5*dv,Vtot.max()-0.5*dv,phase.max()-0.5*dph,phase.min()-0.5*dph)
+            plt.imshow(vsys_time_,extent=extent,aspect='auto')
+            plt.colorbar()
+            plt.xlabel('Velocity (km/s)')
+            plt.ylabel('Orbital phase')
+            plt.axhline(phase[n_ini],ls=':',color="k")
+            plt.axhline(phase[n_end],ls=':',color="k")
+            plt.savefig(nam_fig,bbox_inches="tight")
+            plt.close()
+    return vsys_time,vsys_kp
 # -----------------------------------------------------------
 # Compute the correlation map in the (Kp,Vsys) space
 # For each SPIRou order, compute the correlation coefficient
@@ -37,7 +121,7 @@ def compute_correlation(list_ord,window,phase,Kp,Vsys,V_shift):
                     - Vsys:     Grid of Vsys values (1D vector) --> RV of the planet at mid-transit
 
     --> Outputs:    - correl:   Map of correlation coefficients between the observed and synthetic
-                                spectra (2D matrix with N_Kp, N_Vsys)
+                                spectra (2D matrix with N_Kp, N_Vsys - one for each order)
 
     """
 
@@ -95,7 +179,6 @@ def compute_correlation(list_ord,window,phase,Kp,Vsys,V_shift):
     window2 = np.array(window)[pos]
     Vshift2 = np.array(V_shift)[pos]
     correl  = np.zeros((len(Kp),len(Vsys),len(list_ord),len(phase2)))
-
 
 
     #And now the correlation, following boucher et al. 2021
