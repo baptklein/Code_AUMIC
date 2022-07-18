@@ -43,7 +43,7 @@ V0        = -4.71    #Stellar systemic velocity [km/s]
 c0 = Constants().c0
 
 ### Name of the pickle file to store the info in
-outroot = "Input_data/"
+outroot = "Input_data/igrins/"
 if not os.path.exists(outroot):
     os.makedirs(outroot)
 name_fin = outroot+"data_igrins.pkl"
