@@ -70,7 +70,9 @@ def read_igrins_data(repp):
     wlensH = wlfile[0].data
     wlfile = fits.open(repp+'SDCK_20210803_0276.wave.fits')
     wlensK = wlfile[0].data
-    wlens = np.concatenate([wlensH,wlensK])
+    wlens  = np.concatenate([wlensK,wlensH]) #descending order
+    wlens  = wlens[::-1,:] #ascending order
+
 
     ### Initialisation
     ndet, npix = wlens.shape
@@ -124,14 +126,18 @@ def read_igrins_data(repp):
 
         hdu_list.close()
 
-        #concatatingin K and H spectra
-        data = np.concatenate([image_dataH,image_dataK])
-        var  = np.concatenate([image_varH,image_varK])
-        sn   = np.concatenate([image_snH,image_snK])
+        #concatenating K and H spectra
+        data = np.concatenate([image_dataK,image_dataH])
+        var  = np.concatenate([image_varK,image_varH])
+        sn   = np.concatenate([image_snK,image_snH])
         data_RAW[:,ifile,:] = data # master matrix
         data_var[:,ifile,:] = var
         data_sn[:,ifile,:]  = sn
 
+    #invert arrays - ascending order in wavelength
+    data_RAW = data_RAW[::-1,:,:]
+    data_var = data_var[::-1,:,:]
+    data_sn  = data_sn[::-1,:,:]
     return time_JD, wlens, data_RAW, data_var, data_sn, airms, humidity
 
 # -----------------------------------------------------------
