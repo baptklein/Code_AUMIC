@@ -20,11 +20,8 @@ from functions import *
 ############################# VERSION ADAPTED FOR IGRINS DATA
 
 outroot = "Input_data/igrins/"
-if not os.path.exists(outroot):
-    os.makedirs(outroot)
+
 filename = outroot+"data_igrins.pkl" ### Name of the pickle file to read the data from
-nam_fin  = outroot+"reduced_1.pkl"
-nam_info = outroot+"info_1.dat"
 
 ### Read data in pickle format
 ### Namely:
@@ -72,7 +69,12 @@ auto_tune   = True                             ### Automatic tuning of number of
 
 
 
-
+if mode_pca == "pca" or mode_pca == "PCA":
+    outroot += "PCA/"
+    nam_fin  = outroot+"reduced_1.pkl"
+    nam_info = outroot+"info_1.dat"
+    if not os.path.exists(outroot):
+        os.makedirs(outroot)
 
 
 ### Create order objects
@@ -269,7 +271,7 @@ for nn in range(nord):
                 fig.colorbar(mp2,ax=axes[1])
                 axes[1].set_xlabel(xlabel)
                 plt.tight_layout()
-                plt.savefig("pca_reduced_order{}.png".format(O.number))
+                plt.savefig(outroot+"pca_reduced_order{}.png".format(O.number))
 
 
         txt = str(O.number) + "  " + str(len(O.W_fin)) + "  " + str(np.mean(O.SNR)) + "  " + str(np.mean(O.SNR_mes)) + "  " + str(np.mean(O.SNR_mes_pca)) + "  " + str(n_com) + "\n"
@@ -283,13 +285,13 @@ file.close()
 ### Plot final metrics -- RMS per spectrum in each order
 print("PLOT METRICS")
 orders_fin   = np.delete(orders,ind_rem)
-list_ord_fin =  np.delete(list_ord,ind_rem)
-nam_fig      = "spectrum_dispersion.png"
+list_ord_fin = np.delete(list_ord,ind_rem)
+nam_fig      = outroot + "spectrum_dispersion.png"
 plot_spectrum_dispersion(list_ord_fin,nam_fig)
 print("DONE\n")
 
 ### Save data for correlation
-print("\nData saved in",nam_fin)
+print("\nData saved in",outroot+nam_fin)
 Ir  = []
 WW  = []
 for nn in range(len(orders_fin)):
