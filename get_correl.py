@@ -119,13 +119,9 @@ if __name__ == "__main__":
     V_shift    = vstar - berv # think this has shape (nep), velocity to shift into stellar rest frame
 
 
-<<<<<<< HEAD
-    print(V_shift)
-=======
-### Select orders for the correlation
-ord_sel    = orders
-V_shift    = vstar - berv # think this has shape (nep), velocity to shift into stellar rest frame
->>>>>>> 3a6b2facb59d90fa45bfee70739fbd13abf01309
+    ### Select orders for the correlation
+    ord_sel    = orders
+    V_shift    = vstar - berv # think this has shape (nep), velocity to shift into stellar rest frame
 
 
     print(nord,"orders detected")
