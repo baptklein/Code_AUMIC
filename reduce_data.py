@@ -19,7 +19,7 @@ from functions import *
 
 ############################# VERSION ADAPTED FOR IGRINS DATA
 
-outroot = "Input_data/"
+outroot = "Input_data/igrins/"
 if not os.path.exists(outroot):
     os.makedirs(outroot)
 filename = outroot+"data_igrins.pkl" ### Name of the pickle file to read the data from
@@ -89,8 +89,6 @@ for nn in range(nord):
     O.W_mean = O.W_raw.mean()
     list_ord.append(O)
 print("DONE\n")
-
-
 
 
 ind_rem     = []
