@@ -21,8 +21,13 @@ import argparse
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-file", type=str, required=True,\
-        help="name of model file with which to cross-correlate")
+    parser.add_argument("--instrument", type=str, required=True,\
+        help="select which data to analyse: IGRINS or SPIROU")
+    parser.add_argument("--red-mode", type=str, default="PCA",\
+        help="choose reduction type, options: PCA")
+    parser.add_argument("--aligned", action="store_true", default=False,\
+        help="use the aligned, wavelength recalibrated spectral matrix, \
+         (for IGRINS data)")
     parser.add_argument("--inject", action="store_true", default=False,\
         help="if true, use spectra with injected signal")
     parser.add_argument("--inj-Kp", type=float, default=0.0, \
@@ -31,32 +36,29 @@ if __name__ == "__main__":
         help="systemic velocity (km/s) at which to inject planet signal")
     parser.add_argument("--inj-amp", type=float, default=0.0, \
         help="scale factor of injected planet signal")
-    parser.add_argument("--aligned", action="store_true", default=False,\
-        help="use the aligned, wavelength recalibrated spectral matrix, \
-         (for IGRINS data)")
+
 
     args = parser.parse_args()
 
-    model_dir = 'pRT_models/'.format(args.planet)
-    data_dir  = '../planet_{}/oct17/meech_reduced/'.format(args.planet)
-    if inject: data_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}/"
-    save_dir  = data_dir + 'PCA_reduced/'
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    nam_fin  = save_dir+"reduced_1.pkl"
-    nam_info = save_dir+"info_1.dat"
+    model_dir = 'pRT_models/'
+    data_dir  = 'Input_data/'
+    if args.instrument == 'igrins' or args.instrument == 'IGRINS':
+        data_dir += 'igrins/'
+    elif args.instrument == 'spirou' or args.instrument == 'SPIROU':
+        data_dir += 'spirou/'
 
-    if inject:
+    if args.inject:
         print("loading in spectra with injected signal...")
-        if not unaligned:
-            filename = "inj_spec_aligned.pkl"
-        else:
-            filename = "inj_spec.pkl"
+        data_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}/".format(args.inj_amp,\
+        args.inj_Kp,args.inj_vsys)
+    if args.red_mode=='pca' or args.red_mode=='PCA':
+        data_dir+= 'PCA/'
+
+    if args.aligned:
+        filename = "reduced_aligned.pkl"
     else:
-        if not unaligned:
-            filename = "data_aligned.pkl"
-        else:
-            filename = "data_igrins.pkl"
+        filename = "reduced_1.pkl"
+
     # model files
     species     = ['CO'] # edit to include species in model
     sp          = '_'.join(i for i in species)
@@ -67,19 +69,16 @@ if __name__ == "__main__":
     if order_by_order:
         model_dir += 'order_by_order/'
 
-    # data files
-    data_dir    = 'Input_data/'
-    filename    = data_dir+"reduced_1.pkl"
-
     # results file
-    save_dir    = 'xcorr_result/'+'{}Solar_{}_R1M/'.format(solar,sp)
-    simple      = True # turn on/off simple pearsonr cross-correlation
+    save_dir      = 'xcorr_result/'+'{}Solar_{}_R1M/'.format(solar,sp)
+    simple        = True # turn on (true)/off simple pearsonr cross-correlation
     if simple:
         save_dir += 'pearsonr/'
-        nam_res = save_dir+'corr_velocity.pkl'
+        nam_res   = save_dir+'corr_velocity.pkl'
     else:
-        nam_res     = save_dir+'boucher_corr_Kp_vsys.pkl'
-        nam_fig     = save_dir+'Kp_vsys_map_ALLorders.png'
+        save_dir += 'boucher/'
+        nam_res   = save_dir+'boucher_corr_Kp_vsys.pkl'
+        nam_fig   = save_dir+'Kp_vsys_map_ALLorders.png'
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
