@@ -18,7 +18,7 @@ run with python3610 (or python368) on TITAN
 ### Inputs:
 #   - Rp: planet radius (Rjup)
 #   - Rs: stellar radius (Rsun)
-#   - logg: surface gravity (cgs)
+#   - grav: surface gravity (cgs)
 #   - Teq: planet equilibrium temp (K)
 #   - Teff: stellar effective temp (K)
 #   - Tint: planet interior temp (K)
@@ -81,7 +81,7 @@ if __name__=="__main__":
     parser.add_argument("planet", help='planet name')
     parser.add_argument("--Rp", type=float, required=True, help='planet radius (Rjup)')
     parser.add_argument("--Rs", type=float, required=True, help='stellar radius (Rsun)')
-    parser.add_argument("--logg", type=float, required=True, help='surface gravity (cgs)')
+    parser.add_argument("--grav", type=float, required=True, help='surface gravity (cgs)')
     parser.add_argument("--Teq", type=int, required=True, help='planet equilibrium temp (K)')
     parser.add_argument("--Teff", type=int, default=None, help='stellar effective temp (K)')
     parser.add_argument("--Tint", type=int, default=None, help='planet interior temp (K)')
@@ -108,7 +108,7 @@ if __name__=="__main__":
 
     Rp        = args.Rp*nc.r_jup_mean     # Planet radius [cm]
     Rs        = args.Rs*nc.r_sun          # Stellar radius [cm]
-    gravity   = args.logg                 # Planet surface gravity [cgs]
+    gravity   = args.grav                 # Planet surface gravity [cgs]
     P0        = 0.01                      # Reference pressure [bar]
     Teq       = args.Teq                  # Planet equilibrium temperature [K] -- Isothermal model
     mmw       = args.mmw                  # Mean molecular weight [cgs]
