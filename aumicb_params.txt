@@ -1,12 +1,12 @@
 # List of AU Mic b parameters used for analysis
 
 
-Rp    = 0.363   Rjup       # Martioli 2021
-Rs    = 0.75    Rsun
-logg  = 2.84    cgs
-Teq   = 593     K
-mmw   = 1.8     cgs        # guess?
-wmin  = 1.42    um         # igrins min wavelength
-wmax  = 2.52    um         # igrins max wavelength
-Teff  = 3700    K
-Tint  = 300     K
+Rp    = 0.363     Rjup       # Martioli 2021
+Rs    = 0.75      Rsun
+grav  = 1e1*6.924 cgs
+Teq   = 593       K
+mmw   = 1.8       cgs        # guess?
+wmin  = 1.42      um         # igrins min wavelength
+wmax  = 2.52      um         # igrins max wavelength
+Teff  = 3700      K
+Tint  = 300       K
