@@ -1,3 +1,4 @@
 Input_data/igrins/data_igrins.pkl filter=lfs diff=lfs merge=lfs -text
 Input_data/spirou/reduced_spirou.pkl filter=lfs diff=lfs merge=lfs -text
 Input_data/igrins/reduced_1.pkl filter=lfs diff=lfs merge=lfs -text
+Input_data/igrins/PCA/reduced_1.pkl filter=lfs diff=lfs merge=lfs -text
