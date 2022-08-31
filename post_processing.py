@@ -10,9 +10,11 @@ import sys
 import os
 import matplotlib.pyplot as plt
 import pickle
+from functions import *
 
 outroot = "Input_data/igrins/"
 mode_pca    = "pca"
+plot_all_orders = True
 
 if mode_pca == "pca" or mode_pca == "PCA":
     outroot  += "PCA/"
@@ -25,8 +27,10 @@ with open(filename,'rb') as specfile:
     A = pickle.load(specfile)
 orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN = A
 
-nsig = 3 # no of standard deviations at which to mask
+nsig = 3.0 # no of standard deviations at which to mask
 outroot += 'masked/'
+if not os.path.exists(outroot):
+    os.makedirs(outroot)
 
 
 ### Create order objects
@@ -56,7 +60,7 @@ for nn in range(nord):
     O         = list_ord[nn]
     print("ORDER",O.number)
 
-    W_cl,I_cl = np.copy(O.W_red), np.copy(O.I_red)
+    W_cl,I_cl = np.copy(O.W_red), np.copy(O.I_red)-1.0 #why is it centred at 1 after PCA?
     nep,npix = I_cl.shape
 
     if plot:
@@ -70,7 +74,7 @@ for nn in range(nord):
         axes[0].set_title('Order {}'.format(O.number))
 
     # identify residual tellurics
-    vstd = np.std(I_cl,axis=0)
+    vstd = np.std(I_cl)
     I_cl[np.abs(I_cl)>nsig*vstd] = np.nan
     O.I_mask = I_cl
 
@@ -80,3 +84,5 @@ for nn in range(nord):
         axes[1].set_xlabel(xlabel)
         plt.tight_layout()
         plt.savefig(outroot+"masked_order{}.png".format(O.number))
+
+print("DONE")
