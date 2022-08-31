@@ -27,7 +27,7 @@ with open(filename,'rb') as specfile:
     A = pickle.load(specfile)
 orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN = A
 
-fac = 2.0 # no of standard deviations at which to mask
+fac = 2.0 # factor of std at which to mask
 outroot += 'masked/'
 if not os.path.exists(outroot):
     os.makedirs(outroot)
