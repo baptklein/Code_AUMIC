@@ -1,6 +1,11 @@
-### -- This code takes existing data (generate using calculate_atmosphere.py) and makes various plots. If the
-###  data doesn't exist already then this calls the calculate_atmosphere.py file to generate the data first, then plot.
-# (Apart from the contribution spectrum plot, where data must exist for the overall spectrum you are trying to plot)
+"""
+Created in Aug 2022
+@author: Oliver PEARCE, Baptiste KLEIN & Annabella MEECH
+"""
+
+# This code takes existing data (generate using calculate_atmosphere.py) and makes various plots
+# If the data doesn't already exist then this calls the calculate_atmosphere.py file to generate the data first, then plot
+# (Exception: the data must exist for the contribution_spectrum plot
 
 # Important: Make sure to comment out the running of any functions in Calculate_Atmosphere.py to prevent running the script here.
 from Calculate_Atmosphere import *
@@ -490,4 +495,3 @@ def clear_cloudy(min_wavelength, max_wavelength, species=['CO', 'CH4', 'H2O', 'N
 #clear_cloudy(1700,1800, species=['CH4', 'CO'])
 
 # MAKE SURE NOTHING IS GOING TO BE RUN IN CALCULATE_ATMOSPHERE.PY AS OTHERWISE IT WILL RUN THAT HERE WHEN RUNNING THIS FILE
-

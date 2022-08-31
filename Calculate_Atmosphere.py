@@ -1,4 +1,10 @@
-# This code just generates the data files for each of the models run - to generate plots as well as data, use generate_spectra.py
+"""
+Created in Aug 2022
+@author: Oliver PEARCE, Baptiste KLEIN & Annabella MEECH
+"""
+
+# This code generates the data files for each of the model runs
+# To generate plots as well as data, use generate_spectra.py
 
 # fastchem and documentation available at: https://github.com/exoclime/FastChem
 # petitRADTRANS and documentation available at: https://petitradtrans.readthedocs.io/en/latest/
@@ -394,11 +400,3 @@ def calculate_atm(LS, min_wavelength, max_wavelength, metallicities=metallicitie
 
 
 #calculate_atm(['CH4_main_iso'], 1500, 1600)
-
-
-
-
-
-
-
-
