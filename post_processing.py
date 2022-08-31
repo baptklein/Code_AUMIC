@@ -27,7 +27,7 @@ with open(filename,'rb') as specfile:
     A = pickle.load(specfile)
 orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN = A
 
-nsig = 3.0 # no of standard deviations at which to mask
+fac = 2.0 # no of standard deviations at which to mask
 outroot += 'masked/'
 if not os.path.exists(outroot):
     os.makedirs(outroot)
@@ -74,8 +74,11 @@ for nn in range(nord):
         axes[0].set_title('Order {}'.format(O.number))
 
     # identify residual tellurics
-    vstd = np.std(I_cl)
-    I_cl[np.abs(I_cl)>nsig*vstd] = np.nan
+    std = np.std(I_cl,axis=0)
+    thr = fac*np.nanmedian(std)
+    l   = std>thr
+    l   = np.tile(l[None,:],(nep,1))
+    I_cl[l] = np.nan
     O.I_mask = I_cl
 
     if plot:
