@@ -14,6 +14,8 @@ import pickle
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.decomposition import FastICA
+from scipy.optimize import curve_fit
+from scipy import interpolate
 import time
 from functions import *
 
@@ -42,6 +44,8 @@ print("Read data from",filename)
 with open(filename,'rb') as specfile:
     A = pickle.load(specfile)
 orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
+
+align    = False      # optionally align the spectra
 
 
 ### Data reduction parameters
@@ -129,6 +133,8 @@ for nn in range(nord):
     #r  = np.sort(np.unique(r))
 
     W_cl,I_cl = np.copy(O.W_raw),np.copy(O.I_raw)+0.1
+    nep,npix  = I_cl.shape
+
 
 
 
@@ -142,8 +148,50 @@ for nn in range(nord):
     else:
         print(len(O.W_raw)-len(W_cl),"pts removed from order",O.number,"(",O.W_mean,"nm) -- OK")
 
+        if align:
+            # WOULD NEED TO PROPAGATE UNCERTAINTIES IF NEEDED FURTHER DOWN THE LINE
+            # crop edge of order
+            I_cl[:,:100] = 0.
+            I_cl[:,-100:] = 0.
+            # use brightest spectrum as reference
+            b  = np.nanmean(I_cl,axis=1)
+            ib = np.argsort(b)[-1]
+            ref_spec = I_cl[ib,:]
+            m  = np.isfinite(ref_spec)
+
+            spec_aligned = np.zeros_like(I_cl)
+            for iep in range(nep):
+                spec_to_correct = I_cl[iep,:]
+                l = np.isfinite(spec_to_correct)
+                q = l*m # remove NaNs
+                cs_data = interpolate.splrep(W_cl[q],spec_to_correct[q]/spec_to_correct[q].max(),s=0.0)
+                try:
+                    yy = ref_spec[q]/ref_spec[q].max()
+                    popt,pconv = curve_fit(lambda x,aa,bb: stretch_shift(x,cs_data,aa,bb),W_cl[q],yy,p0=np.array([1.,0]))
+                    #popt,pconv = curve_fit(stretch_shift,W_cl[q],,p0=np.array([1.,0.]))
+                    spec_refit = stretch_shift(W_cl,cs_data,*popt)
+                    spec_refit[~q] = np.nan # maintain nans
+                except:
+                    print('Alignment failed for order {}, exposure {}'.format(O.number,iep))
+                    print('optimal params not found, leave spectrum as is')
+                    spec_refit = spec_to_correct/spec_to_correct[l].max()
+                if np.isnan(spec_refit).any():
+                    sys.exit('order {} ep {} contains nans'.format(nn,nep))
+                spec_aligned[iep] = spec_refit
+
+                # plot an example
+                if iep==20 and nn==10:
+                    plt.figure(figsize=(15,8))
+                    plt.plot(W_cl, ref_spec/ref_spec[m].max(),color='black',label='Reference Spectrum')
+                    plt.plot(W_cl, spec_to_correct/spec_to_correct[l].max(),color='red',label='Original Spectrum')
+                    plt.plot(W_cl, spec_refit, color='C0',alpha=0.8, label='Wavelength Corrected Spectrum')
+                    plt.legend(frameon=False)
+                    plt.tight_layout()
+                    plt.savefig(outroot+"example_alignment_order{}_exp{}.png".format(O.number,nep))
+
+            I_cl = spec_aligned
+
         if plot:
-            nep,npix = I_cl.shape
             fig,axes = plt.subplots(2,1,figsize=(8,4))
             wmin,wmax = W_cl.min(),W_cl.max()
             dw = np.average(W_cl[1:]-W_cl[:-1])
@@ -153,49 +201,36 @@ for nn in range(nord):
             fig.colorbar(mp1,ax=axes[0])
             axes[0].set_title('Order {}'.format(O.number))
 
+        ### First compute reference spectrum in the Geocentric frame
+        I_med2  = np.median(np.concatenate((I_cl[:n_ini],I_cl[n_end:]),axis=0),axis=0)
+        I_sub2  = np.zeros(I_cl.shape)
 
+        # for each epoch
+        for kk in range(len(I_cl)):
+            X          = np.array([np.ones(len(I_med2)),I_med2],dtype=float).T
+            p,pe       = LS(X,I_cl[kk])
+            Ip         = np.dot(X,p)
+            I_sub2[kk] = I_cl[kk]/Ip#I_med2
 
-
-        ### If the order is kept - Remove high-SNR out-of-transit reference spectrum
+        ### If the order is kept - Remove high-SNR(?) out-of-transit reference spectrum
         ### Start by computing mean spectrum in the stellar rest frame
         V_cl      = c0*(W_cl/O.W_mean-1.)
-        I_bary    = move_spec(V_cl,I_cl,V_corr,sig_g)  ## Shift to stellar rest frame
+        I_bary    = move_spec(V_cl,I_sub2,V_corr,sig_g)  ## Shift to stellar rest frame
         I_med     = np.median(np.concatenate((I_bary[:n_ini],I_bary[n_end:]),axis=0),axis=0) ## Compute median out-of-transit
         I_med_geo = move_spec(V_cl,np.array([I_med]),-1.*V_corr,sig_g)  ## Move back ref spectrum to Geocentric frame
-        I_sub1    = np.zeros(I_cl.shape)
+        I_sub1    = np.zeros(I_sub2.shape)
 
         #plt.figure(figsize=(20,5))
         #for ii in range(len(I_cl)):
         #    plt.plot(W_cl,I_cl[ii])
         #plt.show()
 
-
+        # a stretch/shift of the stellar ref spec to each spectrum (then remove)?
         for kk in range(len(I_cl)):
             X          = np.array([np.ones(len(I_med_geo[kk])),I_med_geo[kk]],dtype=float).T
-            p,pe       = LS(X,I_cl[kk])
+            p,pe       = LS(X,I_sub2[kk])
             Ip         = np.dot(X,p)
-            I_sub1[kk] = I_cl[kk]/Ip
-
-
-
-        ### Then compute reference spectrum in the Geocentric frame
-        I_med2  = np.median(np.concatenate((I_sub1[:n_ini],I_sub1[n_end:]),axis=0),axis=0)
-        I_sub2  = np.zeros(I_sub1.shape)
-
-
-        for kk in range(len(I_sub1)):
-            #X          = np.array([np.ones(len(I_med2)),I_med2],dtype=float).T
-            #p,pe       = LS(X,I_sub1[kk])
-            #Ip         = np.dot(X,p)
-            #plt.plot(I_sub1[kk])
-            #plt.plot(Ip)
-            #plt.plot(I_med2)
-            #plt.show()
-            I_sub2[kk] = I_sub1[kk]/I_med2
-
-        #plt.plot(I_sub2[2])
-        #I_med  = np.median(np.concatenate((I_cl[:n_ini],I_cl[n_end:]),axis=0),axis=0)
-        #I_sub2 = I_cl/I_med
+            I_sub1[kk] = I_sub2[kk]/Ip
 
 
         ### Remove extremities to avoid interpolation errors
