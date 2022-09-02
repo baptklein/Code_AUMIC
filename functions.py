@@ -9,6 +9,7 @@ Edited in Jun 2022
 import numpy as np
 import os
 from astropy.io import fits
+from scipy import interpolate
 from scipy.interpolate import interp1d
 from scipy.ndimage import median_filter
 from scipy.signal import savgol_filter
@@ -447,7 +448,10 @@ def normal_law(v,mu,sigma):
     return g
 
 
-
+def stretch_shift(x,cs_data,aa,bb):
+    xx = x*aa + bb
+    data_int = interpolate.splev(xx,cs_data,der=0)
+    return data_int
 
 
 # -----------------------------------------------------------

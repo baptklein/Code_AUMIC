@@ -222,10 +222,6 @@ for nn in range(nord):
         I_med_geo = move_spec(V_cl,np.array([I_med]),-1.*V_corr,sig_g)  ## Move back ref spectrum to Geocentric frame
         I_sub1    = np.zeros(I_sub2.shape)
 
-        #plt.figure(figsize=(20,5))
-        #for ii in range(len(I_cl)):
-        #    plt.plot(W_cl,I_cl[ii])
-        #plt.show()
 
         # a stretch/shift of the stellar ref spec to each spectrum (then remove)?
         for kk in range(len(I_cl)):
@@ -318,7 +314,7 @@ for nn in range(nord):
                 dw = np.average(W_cl[1:]-W_cl[:-1])
                 extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
                 xlabel = 'wavelength (nm)'
-                mp1=axes[0].imshow(I_cl, extent=extent, interpolation='nearest', aspect='auto')
+                mp1=axes[0].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto')
                 fig.colorbar(mp1,ax=axes[0])
                 axes[0].set_title('Order {}'.format(O.number))
 
