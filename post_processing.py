@@ -88,4 +88,17 @@ for nn in range(nord):
         plt.tight_layout()
         plt.savefig(outroot+"masked_order{}.png".format(O.number))
 
+### Save data
+nam_fin = "reduce_masked.pkl"
+print("\nData saved in",outroot+nam_fin)
+Ir  = []
+WW  = []
+for nn in range(len(orders_fin)):
+    O  = list_ord_fin[nn]
+    WW.append(O.W_red)
+    Ir.append(O.I_mask)
+savedata = (orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN)
+with open(nam_fin, 'wb') as specfile:
+    pickle.dump(savedata,specfile)
+
 print("DONE")
