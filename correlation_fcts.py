@@ -67,6 +67,9 @@ def simple_correlation(list_ord,window,phase,Kp,Vtot,plot=False,savedir=None):
         data = data_tot[no]
         wavelengths = wl[no]
 
+        # deal with nans
+        data[np.isnan(data)] = 0.
+
         nep,npix = data.shape
 
         ### Do cross correlation ###
@@ -145,7 +148,9 @@ def compute_correlation(list_ord,window,phase,Kp,Vsys,V_shift):
         Stdtot.append(Stdfit(list_ord[kk].W_fin))        # Store best-fitting solution
         SNRtot.append(list_ord[kk].SNR)
         wl.append(list_ord[kk].W_fin)                    # Store wavelength solution
-        data_tot.append(list_ord[kk].I_pca)              # Store spectra (reduced, after PCA reduction)
+        data   = list_ord[kk].I_pca
+        data[np.isnan(data)] = 0.                        # rid nans
+        data_tot.append(data)                            # Store spectra (reduced, after PCA reduction)
         f = interp.interp1d(list_ord[kk].Wm,list_ord[kk].Im) # Interpolate the planet atmosphere template
         F.append(f)
 
