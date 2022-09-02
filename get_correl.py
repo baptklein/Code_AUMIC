@@ -28,6 +28,8 @@ if __name__ == "__main__":
     parser.add_argument("--aligned", action="store_true", default=False,\
         help="use the aligned, wavelength recalibrated spectral matrix, \
          (for IGRINS data)")
+    parser.add_argument("--masked", action="store_true", default=False,\
+        help="use the masked spectra")
     parser.add_argument("--inject", action="store_true", default=False,\
         help="if true, use spectra with injected signal")
     parser.add_argument("--inj-Kp", type=float, default=0.0, \
@@ -56,8 +58,15 @@ if __name__ == "__main__":
 
     if args.aligned:
         filename = "reduced_aligned.pkl"
+        al       = "_aligned"
     else:
         filename = "reduced_1.pkl"
+        al       = ""
+
+    if args.masked:
+        mk       = "_masked"
+    else:
+        mk       = ""
 
     # model files
     species     = ['CO'] # edit to include species in model
@@ -74,11 +83,11 @@ if __name__ == "__main__":
     simple        = True # turn on (true)/off simple pearsonr cross-correlation
     if simple:
         save_dir += 'pearsonr/'
-        nam_res   = save_dir+'corr_velocity.pkl'
+        nam_res   = save_dir+'corr_velocity{}{}.pkl'.format(al,mk)
     else:
         save_dir += 'boucher/'
-        nam_res   = save_dir+'boucher_corr_Kp_vsys.pkl'
-        nam_fig   = save_dir+'Kp_vsys_map_ALLorders.png'
+        nam_res   = save_dir+'boucher_corr_Kp_vsys{}{}.pkl'.format(al,mk)
+        nam_fig   = save_dir+'Kp_vsys_map_ALLorders{}{}.png'.format(al,mk)
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -110,7 +119,7 @@ if __name__ == "__main__":
     ### READ data
     print("Read data from",filename)
     with open(filename,'rb') as specfile:
-        orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN = pickle.load(specfile)
+        orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,Imask,mask = pickle.load(specfile)
     nord     = len(orders)
 
     ### Select orders for the correlation
@@ -129,10 +138,12 @@ if __name__ == "__main__":
         O        = Order(orders[nn])
         O.W_fin  = np.array(WW[nn],dtype=float)
         O.W_fin  /= 1e3 # hack to convert to um (make universal later)
-        O.I_pca  = np.array(Ir[nn],dtype=float)
         O.SNR    = np.array(SN[nn],dtype=float)
         O.W_mean = O.W_fin.mean()
-
+        if args.masked:
+            O.I_pca = np.array(Imask[nn],dtype=float)
+        else:
+            O.I_pca  = np.array(Ir[nn],dtype=float)
         if order_by_order:
             # load model for each order
             mod_file = model_dir + 'template_det' +str(orders[nn]) + '.pic'
