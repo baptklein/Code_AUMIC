@@ -71,6 +71,8 @@ mode_pca    = "pca"                     ### "pca"/"PCA" or "autoencoder"
 npca        = np.array(2*np.ones(len(orders)),dtype=int)      ### Nb of removed components
 auto_tune   = True                             ### Automatic tuning of number of components based on white noise maps amplified by blaze
 
+### Parameters for masking
+fac       = 2.0 # factor of std at which to mask
 
 
 if mode_pca == "pca" or mode_pca == "PCA":
@@ -309,6 +311,35 @@ for nn in range(nord):
                 plt.savefig(outroot+"pca_reduced_order{}.png".format(O.number))
 
 
+            ### POST-PCA MASKING OF NOISY COLUMNS
+            if plot:
+                fig,axes = plt.subplots(2,1,figsize=(8,4))
+                wmin,wmax = W_cl.min(),W_cl.max()
+                dw = np.average(W_cl[1:]-W_cl[:-1])
+                extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
+                xlabel = 'wavelength (nm)'
+                mp1=axes[0].imshow(I_cl, extent=extent, interpolation='nearest', aspect='auto')
+                fig.colorbar(mp1,ax=axes[0])
+                axes[0].set_title('Order {}'.format(O.number))
+
+            # identify residual tellurics
+            std       = np.std(O.I_pca,axis=0)
+            thr       = fac*np.nanmedian(std)
+            l         = std>thr
+            l         = np.tile(l[None,:],(nep,1))
+            I_mask    = np.copy(O.I_pca)
+            I_mask[l] = np.nan
+            O.I_mask  = I_mask
+            mk        = np.isnan(I_mask)
+            O.mask    = mk
+
+            if plot:
+                mp2=axes[1].imshow(O.I_mask, extent=extent, interpolation='nearest', aspect='auto')
+                fig.colorbar(mp2,ax=axes[1])
+                axes[1].set_xlabel(xlabel)
+                plt.tight_layout()
+                plt.savefig(outroot+"masked/masked_order{}.png".format(O.number))
+
         txt = str(O.number) + "  " + str(len(O.W_fin)) + "  " + str(np.mean(O.SNR)) + "  " + str(np.mean(O.SNR_mes)) + "  " + str(np.mean(O.SNR_mes_pca)) + "  " + str(n_com) + "\n"
         file.write(txt)
 
@@ -327,13 +358,17 @@ print("DONE\n")
 
 ### Save data for correlation
 print("\nData saved in",outroot+nam_fin)
-Ir  = []
-WW  = []
+Ir    = []
+WW    = []
+Imask = []
+mask  = []
 for nn in range(len(orders_fin)):
     O  = list_ord_fin[nn]
     WW.append(O.W_fin)
     Ir.append(O.I_pca)
-savedata = (orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN)
+    Imask.append(O.I_mask)
+    mask.append(O.mask)
+savedata = (orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,Imask,mask)
 with open(nam_fin, 'wb') as specfile:
     pickle.dump(savedata,specfile)
 print("DONE")
