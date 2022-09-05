@@ -137,7 +137,9 @@ for nn in range(nord):
     W_cl,I_cl = np.copy(O.W_raw),np.copy(O.I_raw)+0.1
     nep,npix  = I_cl.shape
 
-
+    # purge nans and negatives
+    I_cl[I_cl<0] = 0.
+    I_cl[np.isnan(I_cl)] = 0.
 
 
     ### If the order does not contain enough points, it is discarded
@@ -166,9 +168,9 @@ for nn in range(nord):
                 spec_to_correct = I_cl[iep,:]
                 l = np.isfinite(spec_to_correct)
                 q = l*m # remove NaNs
-                cs_data = interpolate.splrep(W_cl[q],spec_to_correct[q]/spec_to_correct[q].max(),s=0.0)
+                cs_data = interpolate.splrep(W_cl[q],spec_to_correct[q],s=0.0)
                 try:
-                    yy = ref_spec[q]/ref_spec[q].max()
+                    yy = ref_spec[q]
                     popt,pconv = curve_fit(lambda x,aa,bb: stretch_shift(x,cs_data,aa,bb),W_cl[q],yy,p0=np.array([1.,0]))
                     #popt,pconv = curve_fit(stretch_shift,W_cl[q],,p0=np.array([1.,0.]))
                     spec_refit = stretch_shift(W_cl,cs_data,*popt)
@@ -176,7 +178,7 @@ for nn in range(nord):
                 except:
                     print('Alignment failed for order {}, exposure {}'.format(O.number,iep))
                     print('optimal params not found, leave spectrum as is')
-                    spec_refit = spec_to_correct/spec_to_correct[l].max()
+                    spec_refit = spec_to_correct
                 if np.isnan(spec_refit).any():
                     sys.exit('order {} ep {} contains nans'.format(nn,nep))
                 spec_aligned[iep] = spec_refit
@@ -184,8 +186,8 @@ for nn in range(nord):
                 # plot an example
                 if iep==20 and nn==10:
                     plt.figure(figsize=(15,8))
-                    plt.plot(W_cl, ref_spec/ref_spec[m].max(),color='black',label='Reference Spectrum')
-                    plt.plot(W_cl, spec_to_correct/spec_to_correct[l].max(),color='red',label='Original Spectrum')
+                    plt.plot(W_cl, ref_spec,color='black',label='Reference Spectrum')
+                    plt.plot(W_cl, spec_to_correct,color='red',label='Original Spectrum')
                     plt.plot(W_cl, spec_refit, color='C0',alpha=0.8, label='Wavelength Corrected Spectrum')
                     plt.legend(frameon=False)
                     plt.tight_layout()
@@ -213,7 +215,6 @@ for nn in range(nord):
             p,pe       = LS(X,I_cl[kk])
             Ip         = np.dot(X,p)
             I_sub2[kk] = I_cl[kk]/Ip#I_med2
-
         ### If the order is kept - Remove high-SNR(?) out-of-transit reference spectrum
         ### Start by computing mean spectrum in the stellar rest frame
         V_cl      = c0*(W_cl/O.W_mean-1.)
@@ -233,9 +234,8 @@ for nn in range(nord):
 
         ### Remove extremities to avoid interpolation errors
         W_sub = W_cl[N_bor:-N_bor]
-        I_sub = I_sub2[:,N_bor:-N_bor]
+        I_sub = I_sub1[:,N_bor:-N_bor]
         ### END of STEP 1
-
 
         ### STEP 2 -- NORMALISATION AND OUTLIER REMOVAL
         W_norm1,I_norm1 = O.normalize(W_sub,I_sub,N_med,sig_out,N_bor)
@@ -243,7 +243,6 @@ for nn in range(nord):
 
         W_norm2,I_norm2 = O.filter_pixel(W_norm1,I_norm1,deg_px,sig_out)
         ### END of STEP 2
-
 
         #plt.plot(I_norm2[2])
 
@@ -261,8 +260,6 @@ for nn in range(nord):
 
 
         O.W_fin  = np.copy(W_norm2)
-
-
 
 
 
@@ -335,6 +332,7 @@ for nn in range(nord):
                 axes[1].set_xlabel(xlabel)
                 plt.tight_layout()
                 plt.savefig(outroot+"masked/masked_order{}.png".format(O.number))
+                plt.close()
 
         txt = str(O.number) + "  " + str(len(O.W_fin)) + "  " + str(np.mean(O.SNR)) + "  " + str(np.mean(O.SNR_mes)) + "  " + str(np.mean(O.SNR_mes_pca)) + "  " + str(n_com) + "\n"
         file.write(txt)
