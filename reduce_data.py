@@ -77,10 +77,14 @@ fac       = 2.0 # factor of std at which to mask
 
 if mode_pca == "pca" or mode_pca == "PCA":
     outroot += "PCA/"
-    nam_fin  = outroot+"reduced_1.pkl"
-    nam_info = outroot+"info_1.dat"
-    if not os.path.exists(outroot):
-        os.makedirs(outroot)
+if align:
+    outroot += 'aligned/'
+nam_fin  = outroot+"reduced_1.pkl"
+nam_info = outroot+"info_1.dat"
+if not os.path.exists(outroot):
+    os.makedirs(outroot)
+if not os.path.exists(outroot+'masked/'):
+    os.makedirs(outroot+'masked/')
 
 
 ### Create order objects
@@ -193,6 +197,9 @@ for nn in range(nord):
                     plt.tight_layout()
                     plt.savefig(outroot+"example_alignment_order{}_exp{}.png".format(O.number,nep))
 
+            # purge nans and negatives
+            spec_aligned[spec_aligned<0] = 0.
+            spec_aligned[np.isnan(spec_aligned)] = 0.
             I_cl = spec_aligned
 
         if plot:
