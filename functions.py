@@ -370,6 +370,20 @@ def crit_hyp(par,xx,yy):
     y_pred = hyp(par,xx)
     return np.sum((yy-y_pred)**(2))
 
+def poly(par,xx):
+    return par[0] + par[1]*xx + par[2]*xx**2
+
+def poly_inv(par,yy):
+    c,b,a = par
+    ci = b**2/(4*a)
+    cj = b/(2*a)
+    tfr = yy + ci - c
+    return np.sqrt(tfr/a) - cj
+
+def crit_poly(par,xx,yy):
+    y_pred = poly(par,xx)
+    return np.sum((yy-y_pred)**2)
+
 
 # -----------------------------------------------------------
 # Compute Order to mean wavelength equivalence
@@ -377,26 +391,41 @@ def crit_hyp(par,xx,yy):
 # In practice: fits an hyperbola between order nb and mean wavelength
 # See function plots.plot_orders for more information
 # -----------------------------------------------------------
-def fit_order_wave(LO,wm_fin):
+def fit_order_wave(LO,wm_fin,instrument):
 
     """
     --> Inputs:     - LO: list of order numbers
                     - wm_fin: list of the mean wavelengths corresponding to LO
+                    - instrument: igrins or spirou
 
     --> Outputs:    - WW: Wavelength ticks for the plot
                     - LO_pred: order numbers corresponding to WW
                     - LO_predt: densely-sampled list of orders for minor ticks locators
     """
 
-    par0    = np.array([100000,200.0],dtype=float)
-    res     = minimize(crit_hyp,par0,args=(LO,wm_fin))
-    p_best  = res.x
-    LO_tot  = np.arange(29,81)
-    pp      = hyp(p_best,LO_tot)
-    WWT      = np.linspace(2400,900,16)
-    WW       = np.array([2400.0,2100,1800,1500,1200,1000],dtype=int)
-    LO_predt = hyp_inv(p_best,WWT)
-    LO_pred  = hyp_inv(p_best,WW)
+    if instrument == 'IGRINS' or instrument == 'igrins':
+        LO_tot  = np.arange(1,54)
+        WWT      = np.linspace(1400,2500,11)
+        WW       = np.array([1400,1650,1900,2150,2400,2500],dtype=int)
+        par0    = np.array([1.,1.,1.],dtype=float)
+        res     = minimize(crit_poly,par0,args=(LO,wm_fin))
+        p_best  = res.x
+        pp       = poly(p_best,LO_tot)
+        LO_predt = poly_inv(p_best,WWT)
+        LO_pred  = poly_inv(p_best,WW)
+    elif instrument == 'SPIROU' or instrument == 'spirou':
+        LO_tot  = np.arange(29,81)
+        WWT      = np.linspace(2400,900,16)
+        WW       = np.array([2400.0,2100,1800,1500,1200,1000],dtype=int)
+        par0    = np.array([100,1400.0],dtype=float)
+        res     = minimize(crit_hyp,par0,args=(LO,wm_fin))
+        p_best  = res.x
+        pp       = hyp(p_best,LO_tot)
+        LO_predt = hyp_inv(p_best,WWT)
+        LO_pred  = hyp_inv(p_best,WW)
+    else:
+        sys.exit('Instrument option not compatible. Choose SPIROU or IGRINS.')
+
     return WW,LO_pred,LO_predt
 
 
@@ -506,10 +535,12 @@ def make_pca(I,N_comp_pca,return_all=False):
 # Compare the dispersion at the center of each spectrum (in
 # each order) to the photon noise provided by the SPIRou DRS
 # -----------------------------------------------------------
-def plot_spectrum_dispersion(lord,nam_fig):
+def plot_spectrum_dispersion(lord,nam_fig,instrument):
 
     """
     --> Inputs:     - lord: list of Order objects
+                    - nam_fig: filename
+                    - instrument: igrins or spirou
 
     --> Outputs:    - Plot displayed
 
@@ -526,25 +557,24 @@ def plot_spectrum_dispersion(lord,nam_fig):
     LO         = np.zeros(len(lord),dtype=int)
 
     for kk in range(len(lord)):
-        O              = lord[kk]
-        disp_mes       = 1./O.SNR_mes
+        O              = lord[kk] #disp_mes       = 1./O.SNR_mes
         disp_drs       = 1./O.SNR
-        disp_pca       = 1./O.SNR_mes_pca
-        rms_sp[kk]     = np.mean(disp_mes)
-        rms_sp_s[kk]   = np.std(disp_mes)
+        #disp_pca       = 1./O.SNR_mes_pca
+        #rms_sp[kk]     = np.mean(disp_mes)
+        #rms_sp_s[kk]   = np.std(disp_mes)
         rms_drs[kk]    = np.mean(disp_drs)
         rms_drs_s[kk]  = np.std(disp_drs)
-        rms_pca[kk]    = np.mean(disp_pca)
-        rms_pca_s[kk]  = np.std(disp_pca)
+        #rms_pca[kk]    = np.mean(disp_pca)
+        #rms_pca_s[kk]  = np.std(disp_pca)
         wmean[kk]      = O.W_mean
         LO[kk]         = O.number
 
     # Compute wavelength-order number correspondance
-    WW,LO_pred,LO_predt = fit_order_wave(LO,wmean)
+    WW,LO_pred,LO_predt = fit_order_wave(LO,wmean,instrument)
     plt.figure(figsize=(12,5))
     ax = plt.subplot(111)
-    ax.errorbar(LO,rms_sp,rms_sp_s,fmt="*",color="k",label="Reduced data",capsize=10.0,ms=10.)
-    ax.errorbar(LO,rms_pca,rms_pca_s,fmt="^",color="g",label="After PCA",capsize=10.0,ms=7.5)
+    #ax.errorbar(LO,rms_sp,rms_sp_s,fmt="*",color="k",label="Reduced data",capsize=10.0,ms=10.)
+    #ax.errorbar(LO,rms_pca,rms_pca_s,fmt="^",color="g",label="After PCA",capsize=10.0,ms=7.5)
     ax.errorbar(LO,rms_drs,rms_drs_s,fmt="o",color="m",label="DRS",capsize=8.0)
 
     ax.legend(ncol=2)
@@ -552,9 +582,9 @@ def plot_spectrum_dispersion(lord,nam_fig):
     ax2.set_xticks(LO_pred)
     ax2.set_xlabel("Wavelength [nm]")
     ax2.set_xticklabels(WW)
-    ax2.xaxis.set_minor_locator(ticker.FixedLocator(LO_predt))
-    ax.set_xlim(30,80)
-    ax2.set_xlim(30,80)
+    #ax2.xaxis.set_minor_locator(ticker.FixedLocator(LO_predt))
+    #ax.set_xlim(30,80)
+    #ax2.set_xlim(30,80)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
     ax.set_ylabel("Spectrum dispersion")
     ax.set_xlabel("Order number")
