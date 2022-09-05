@@ -559,13 +559,13 @@ def plot_spectrum_dispersion(lord,nam_fig,instrument):
     for kk in range(len(lord)):
         O              = lord[kk] #disp_mes       = 1./O.SNR_mes
         disp_drs       = 1./O.SNR
-        #disp_pca       = 1./O.SNR_mes_pca
-        #rms_sp[kk]     = np.mean(disp_mes)
-        #rms_sp_s[kk]   = np.std(disp_mes)
+        disp_pca       = 1./O.SNR_mes_pca
+        rms_sp[kk]     = np.mean(disp_mes)
+        rms_sp_s[kk]   = np.std(disp_mes)
         rms_drs[kk]    = np.mean(disp_drs)
         rms_drs_s[kk]  = np.std(disp_drs)
-        #rms_pca[kk]    = np.mean(disp_pca)
-        #rms_pca_s[kk]  = np.std(disp_pca)
+        rms_pca[kk]    = np.mean(disp_pca)
+        rms_pca_s[kk]  = np.std(disp_pca)
         wmean[kk]      = O.W_mean
         LO[kk]         = O.number
 
@@ -573,8 +573,8 @@ def plot_spectrum_dispersion(lord,nam_fig,instrument):
     WW,LO_pred,LO_predt = fit_order_wave(LO,wmean,instrument)
     plt.figure(figsize=(12,5))
     ax = plt.subplot(111)
-    #ax.errorbar(LO,rms_sp,rms_sp_s,fmt="*",color="k",label="Reduced data",capsize=10.0,ms=10.)
-    #ax.errorbar(LO,rms_pca,rms_pca_s,fmt="^",color="g",label="After PCA",capsize=10.0,ms=7.5)
+    ax.errorbar(LO,rms_sp,rms_sp_s,fmt="*",color="k",label="Reduced data",capsize=10.0,ms=10.)
+    ax.errorbar(LO,rms_pca,rms_pca_s,fmt="^",color="g",label="After PCA",capsize=10.0,ms=7.5)
     ax.errorbar(LO,rms_drs,rms_drs_s,fmt="o",color="m",label="DRS",capsize=8.0)
 
     ax.legend(ncol=2)
@@ -582,7 +582,7 @@ def plot_spectrum_dispersion(lord,nam_fig,instrument):
     ax2.set_xticks(LO_pred)
     ax2.set_xlabel("Wavelength [nm]")
     ax2.set_xticklabels(WW)
-    #ax2.xaxis.set_minor_locator(ticker.FixedLocator(LO_predt))
+    ax2.xaxis.set_minor_locator(ticker.FixedLocator(LO_predt))
     #ax.set_xlim(30,80)
     #ax2.set_xlim(30,80)
     ax.xaxis.set_minor_locator(MultipleLocator(1))
