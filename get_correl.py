@@ -119,7 +119,7 @@ if __name__ == "__main__":
     ### READ data
     print("Read data from",filename)
     with open(filename,'rb') as specfile:
-        orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,Imask,mask = pickle.load(specfile)
+        orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask = pickle.load(specfile)
     nord     = len(orders)
 
     ### Select orders for the correlation

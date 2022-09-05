@@ -20,8 +20,13 @@ import time
 from functions import *
 
 ############################# VERSION ADAPTED FOR IGRINS DATA
+outroot = 'Input_data/'
+instrument = 'igrins'
 
-outroot = "Input_data/igrins/"
+if instrument == 'IGRINS' or 'igrins':
+    outroot += 'igrins/'
+elif instrument =='SPIROU' or 'spirou':
+    outroot += 'spirou/'
 
 filename = outroot+"data_igrins.pkl" ### Name of the pickle file to read the data from
 
@@ -45,7 +50,7 @@ with open(filename,'rb') as specfile:
     A = pickle.load(specfile)
 orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 
-align    = False      # optionally align the spectra
+align    = True      # optionally align the spectra
 
 
 ### Data reduction parameters
@@ -126,6 +131,7 @@ for nn in range(nord):
             plot=False
     O         = list_ord[nn]
     print("ORDER",O.number)
+    print(O.W_mean)
 
     ### First we identify strong telluric lines and remove the data within these lines -- see Boucher+2021
     #W_cl,I_cl =  O.remove_tellurics(dep_min,thres_up)  ### Need a telluric spectrum
@@ -354,7 +360,7 @@ print("PLOT METRICS")
 orders_fin   = np.delete(orders,ind_rem)
 list_ord_fin = np.delete(list_ord,ind_rem)
 nam_fig      = outroot + "spectrum_dispersion.png"
-plot_spectrum_dispersion(list_ord_fin,nam_fig)
+plot_spectrum_dispersion(list_ord_fin,nam_fig,instrument)
 print("DONE\n")
 
 ### Save data for correlation
@@ -363,13 +369,17 @@ Ir    = []
 WW    = []
 Imask = []
 mask  = []
+SNR_mes = []
+SNR_mes_pca = []
 for nn in range(len(orders_fin)):
     O  = list_ord_fin[nn]
     WW.append(O.W_fin)
     Ir.append(O.I_pca)
     Imask.append(O.I_mask)
     mask.append(O.mask)
-savedata = (orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,Imask,mask)
+    SNR_mes.append(O.SNR_mes)
+    SNR_mes_pca.append(O.SNR_mes_pca)
+savedata = (orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask)
 with open(nam_fin, 'wb') as specfile:
     pickle.dump(savedata,specfile)
 print("DONE")
