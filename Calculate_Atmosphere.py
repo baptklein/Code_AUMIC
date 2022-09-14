@@ -16,12 +16,12 @@ Created in Aug 2022
 import sys
 
 # You may need to append your path to installed python packages, for me they are in the anaconda folder
-sys.path.append("/Users/pearceo/opt/anaconda3/lib/python3.9/site-packages")
+#sys.path.append("/Users/pearceo/opt/anaconda3/lib/python3.9/site-packages")
 import numpy as np
 import time
 from petitRADTRANS import Radtrans
 from petitRADTRANS import nat_cst as nc
-import pylab as plt
+import matplotlib.pyplot as plt
 import scipy
 from scipy import ndimage
 import csv
@@ -133,7 +133,7 @@ def normalisation(input_data, size):
 def fastchem(metallicity, ratio, temp_profile='Guillot'):
     # PATH TO DESIRED OUTPUT FOLDER - all plots and data will be saved here, for each model
     # To avoid lots of files all in one place, making folders for each model and within that folder for each wavelength range tested.
-    output_dir = 'Output/' + str(metallicity) + 'x_metallicity_' + str(ratio) + '_CO_ratio/'
+    output_dir = 'Models/' + str(metallicity) + 'x_metallicity_' + str(ratio) + '_CO_ratio/'
 
     if temp_profile == 'Guillot':
         temperature = nc.guillot_global(pressure, kappa_IR, gamma, gravity, T_int, T_equ)
@@ -141,8 +141,8 @@ def fastchem(metallicity, ratio, temp_profile='Guillot'):
         temperature = T_equ * np.ones_like(pressure)
 
     # INPUT YOUR PATH TO fastchem/input/elemental_abundances_solar.dat and fastchem/input/logK.dat
-    fastchem = pyfastchem.FastChem('/Users/pearceo/Documents/fastchem/input/element_abundances_solar.dat',
-                                   '/Users/pearceo/Documents/fastchem/input/logK.dat', 1)
+    fastchem = pyfastchem.FastChem('/Users/meech/fastchem/input/element_abundances_solar.dat',
+                                   '/Users/meech/fastchem/input/logK.dat', 1)
 
     solar_abundances = np.array(fastchem.getElementAbundances())
     index_C = fastchem.getSpeciesIndex('C')
