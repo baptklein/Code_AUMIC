@@ -87,10 +87,8 @@ if mode_pca == "pca" or mode_pca == "PCA":
     outroot += "PCA/"
 nam_fin  = outroot+"reduced_1.pkl"
 nam_info = outroot+"info_1.dat"
-if not os.path.exists(outroot):
-    os.makedirs(outroot)
-if not os.path.exists(outroot+'masked/'):
-    os.makedirs(outroot+'masked/')
+os.makedirs(outroot,exist_ok=True)
+os.makedirs(outroot+'masked/',exist_ok=True)
 
 
 ### Create order objects

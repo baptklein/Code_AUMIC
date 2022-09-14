@@ -44,8 +44,7 @@ c0 = Constants().c0
 
 ### Name of the pickle file to store the info in
 outroot = "Input_data/igrins/"
-if not os.path.exists(outroot):
-    os.makedirs(outroot)
+os.makedirs(outroot,exist_ok=True)
 name_fin = outroot+"data_igrins.pkl"
 wlen_fin = outroot+'wlens_igrins.pkl'
 
