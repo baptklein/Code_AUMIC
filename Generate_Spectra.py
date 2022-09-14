@@ -40,7 +40,7 @@ def generate_spectrum(min_wavelength, max_wavelength, orders='yes', species=['CH
         for ratio in C_O_ratios:
             # Check if output directory exists, create it if not
             # INPUT: Your path to output directory
-            output_dir = 'Output/' + str(metallicity) + 'x_metallicity_' + str(ratio) + '_CO_ratio/' +\
+            output_dir = 'Models/' + str(metallicity) + 'x_metallicity_' + str(ratio) + '_CO_ratio/' +\
                          str(int(min_wavelength)) + '_' + str(int(max_wavelength)) + '/'
             os.makedirs(output_dir, exist_ok=True)
 
@@ -86,7 +86,7 @@ def generate_spectrum(min_wavelength, max_wavelength, orders='yes', species=['CH
             plt.plot(wavelength, normalised_flux, label='Spectrum')
 
             # Plotting the diffraction grating orders if selected
-            if orders == 'yes' or orders == 'Yes':
+            if orders == 'yes' or orders == 'Yes' or orders == 'Y':
                 spirou_min = []
                 spirou_max = []
                 spirou = open("orders_spirou.dat", "r")
@@ -152,7 +152,7 @@ def contribution_spectrum(min_wavelength, max_wavelength, species=['CH4', 'CO', 
         for ratio in C_O_ratios:
 
             # INPUT: Your path to output directory
-            output_dir = 'Output/' + str(metallicity) + 'x_metallicity_' + str(ratio) + '_CO_ratio/' + \
+            output_dir = 'Models/' + str(metallicity) + 'x_metallicity_' + str(ratio) + '_CO_ratio/' + \
                          str(int(min_wavelength)) + '_' + str(int(max_wavelength)) + '/'
             os.makedirs(output_dir, exist_ok=True)
             plt.figure(figsize=[15, 9])
@@ -214,8 +214,8 @@ def contribution_spectrum(min_wavelength, max_wavelength, species=['CH4', 'CO', 
 def varying_metallicity(ratio, min_wavelength, max_wavelength, species=['CH4', 'CO', 'CO2', 'H2O', 'NH3']):
 
     # # INPUT: Your path to input and output directory
-    input_dir = 'Output/'
-    output_dir = 'Output/Varying_Metallicity/'+str(int(min_wavelength)) + '_' + str(int(max_wavelength)) + '/'
+    input_dir = 'Models/'
+    output_dir = 'Models/Varying_Metallicity/'+str(int(min_wavelength)) + '_' + str(int(max_wavelength)) + '/'
     # check if output directory exists, create it if it doesn't
     os.makedirs(output_dir, exist_ok=True)
     plt.figure(figsize=[15,9])
@@ -293,8 +293,8 @@ def varying_metallicity(ratio, min_wavelength, max_wavelength, species=['CH4', '
 def varying_ratio(metallicity, min_wavelength, max_wavelength, species=['CH4', 'CO', 'CO2', 'H2O', 'NH3']):
 
     # INPUT: Your path to input and output directory
-    input_dir = 'Output/'
-    output_dir = 'Output/Varying_Ratio/'+str(int(min_wavelength)) + '_' + str(int(max_wavelength)) + '/'
+    input_dir = 'Models/'
+    output_dir = 'Models/Varying_Ratio/'+str(int(min_wavelength)) + '_' + str(int(max_wavelength)) + '/'
     # check if output directory exists, create it if it doesn't
     os.makedirs(output_dir, exist_ok=True)
     plt.figure(figsize=[15, 9])
@@ -370,7 +370,7 @@ def clear_cloudy(min_wavelength, max_wavelength, species=['CO', 'CH4', 'H2O', 'N
     for metallicity in metallicities:
         for ratio in C_O_ratios:
             # INPUT: Your path to output directory
-            output_dir = 'Output/' + str(metallicity) + 'x_metallicity_' + str(ratio) + '_CO_ratio/' + \
+            output_dir = 'Models/' + str(metallicity) + 'x_metallicity_' + str(ratio) + '_CO_ratio/' + \
                          str(int(min_wavelength)) + '_' + str(int(max_wavelength)) + '/'
 
             if len(species)==1:
