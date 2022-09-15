@@ -465,8 +465,8 @@ def clear_cloudy(min_wavelength, max_wavelength, species=['CO', 'CH4', 'H2O', 'N
 #       generate_spectrum(min_wavelength=j, max_wavelength=j+100, orders='yes', species=[species[i]])
 
 # To generate full spectra over all 100nm wavelength chunks:
-#for i in range(1000,2500,100):
-#    generate_spectrum(min_wavelength=i, max_wavelength=i+100, orders='yes')
+for i in range(1000,2500,100):
+    generate_spectrum(min_wavelength=i, max_wavelength=i+100, orders='yes')
 
 # Plotting the contribution spectrum: (default all species)
 #for i in range(1000,2500,100):
