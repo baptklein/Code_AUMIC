@@ -70,8 +70,7 @@ if __name__ == "__main__":
         mk       = ""
 
     # model files
-    species     = ['CO'] # edit to include species in model
-    if instrument=='spirou': species = ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -88,15 +87,15 @@ if __name__ == "__main__":
 
 
     # results file
-    save_dir      = 'xcorr_result/'+'{}/'.format(instrument)+'{}Solar_{}_R1M/'.format(solar,sp)
+    save_dir      = 'xcorr_result/'+'{}/'.format(instrument)+'{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
     simple        = False # turn on (true)/off simple pearsonr cross-correlation
     if simple:
         save_dir += 'pearsonr/'
-        nam_res   = save_dir+'corr_velocity{}{}.pkl'.format(al,mk)
+        nam_res   = save_dir+'corr_velocity_{}_{}{}.pkl'.format(sp,al,mk)
     else:
         save_dir += 'boucher/'
-        nam_res   = save_dir+'boucher_corr_Kp_vsys{}{}.pkl'.format(al,mk)
-        nam_fig   = save_dir+'Kp_vsys_map_ALLorders{}{}.png'.format(al,mk)
+        nam_res   = save_dir+'corr_Kp_vsys_{}_{}{}.pkl'.format(sp,al,mk)
+        nam_fig   = save_dir+'Kp_vsys_map_ALLorders_{}_{}{}.png'.format(sp,al,mk)
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -112,7 +111,7 @@ if __name__ == "__main__":
 
     ### Velocimetric semi-amplitude
     Kpmin      = 0.0 #Jupiter
-    Kpmax      = 280.0#Jupiter
+    Kpmax      = 250.0#Jupiter
     Nkp        = 100 ### Size of the grid
     Kp         = np.linspace(Kpmin,Kpmax,Nkp)
 
@@ -177,7 +176,7 @@ if __name__ == "__main__":
             mod_file = model_dir + 'template_det1.pic'
             W_mod,T_depth = pickle.load(open(mod_file,'rb'))
         elif instrument=='spirou':
-            mod_file = model_dir+'pRT_data_full_CH4_CO_CO2_H2O_NH3.dat'
+            mod_file = model_dir+'pRT_data_full_{}.dat'.format(sp)
             W_mod = []
             T_depth = []
             with open(mod_file, 'r') as data:
@@ -227,7 +226,7 @@ if __name__ == "__main__":
 
 
         ### Plot correlation + 1D cut
-        K_cut   = 120.2 # expected 83 km/s
+        K_cut   = 83. # expected 83 km/s
         V_cut   = 0.0
         ind_v   = np.argmin(np.abs(Vsys-V_cut))
         ind_k   = np.argmin(np.abs(Kp-K_cut))
@@ -242,12 +241,14 @@ if __name__ == "__main__":
             pickle.dump(savedata,specfile)
         print("DONE")
 
-        plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20)
-        #plot_correlation_map(Vsys,Kp,sn_map,nam_fig,K_cut,V_cut,cmap,sn_cutx,sn_cuty,20)
-
-
-
-
-
         ### Get and display statistics
         p_best,K_best,K_sup,K_inf,V_best,V_sup,V_inf = get_statistics(Vsys,Kp,sig_fin)
+
+        if args.inject:
+            V_cut = round(args.inj_vsys,1)
+            K_cut = round(args.inj_Kp,1)
+        else:
+            V_cut = round(V_best,1)
+            K_cut = round(K_best,1)
+        plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True)
+        #plot_correlation_map(Vsys,Kp,sn_map,nam_fig,K_cut,V_cut,cmap,sn_cutx,sn_cuty,20)

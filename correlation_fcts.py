@@ -10,6 +10,7 @@ import time
 import os
 import sys
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import pickle
 import scipy.interpolate as interp
 import scipy.signal
@@ -151,7 +152,7 @@ def compute_correlation(list_ord,window,phase,Kp,Vsys,V_shift):
         data   = list_ord[kk].I_pca
         data[np.isnan(data)] = 0.                        # rid nans
         data_tot.append(data)                            # Store spectra (reduced, after PCA reduction)
-        f = interp.interp1d(list_ord[kk].Wm,list_ord[kk].Im) # Interpolate the planet atmosphere template
+        f = interp.interp1d(list_ord[kk].Wm,list_ord[kk].Im)#,bounds_error=False) # Interpolate the planet atmosphere template
         F.append(f)
 
 
@@ -418,16 +419,27 @@ def get_statistics(x,y,C):
 # - Either simple color map (if sn_cutx = [])
 # - Either color map + 1D cuts at best Kp and Vsys
 # -----------------------------------------------------------
-def plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_inj=0.0,K_inj=0.0,cmap="gist_heat",sn_cutx=[],sn_cuty=[],levels=10):
+def plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_inj=0.0,K_inj=0.0,cmap="gist_heat",sn_cutx=[],sn_cuty=[],levels=10,pointer=False):
 
     ### Simple color maps
     if len(sn_cutx) == 0:
-        plt.figure(figsize=(10,7))
+        fig, ax = plt.subplots(figsize=(10,7))
         plt.contourf(Vsys,Kp,sn_map,levels=levels,cmap=cmap)
         plt.ylabel(r"K$_{\rm{p}}$ [km/s]")
         plt.xlabel(r"V$_{\rm{sys}}$ [km/s]")
-        plt.axhline(K_inj,ls="--",lw=1.0,color="w")
-        plt.axvline(V_inj,ls="--",lw=1.0,color="w")
+
+        if pointer:
+            width  = 0.1*np.ptp(Vsys)
+            height = 0.1*np.ptp(Kp)
+            plt.hlines(K_inj, Vsys.min(), V_inj-0.5*width,ls='--',lw=1.0,color='w')
+            plt.hlines(K_inj, V_inj+0.5*width, Vsys.max(),ls='--',lw=1.0,color='w')
+            plt.vlines(V_inj, Kp.min(), K_inj-0.5*height,ls='--',lw=1.0,color='w')
+            plt.vlines(V_inj, K_inj+0.5*height, Kp.max(),ls='--',lw=1.0,color='w')
+            rect = patches.Rectangle((V_inj-0.5*width,K_inj-0.5*height), width, height, lw=2, ec='w', zorder=2, fill=False)
+            ax.add_patch(rect) # Add the patch to the Axes
+        else:
+            plt.axhline(K_inj,ls="--",lw=1.0,color="w")
+            plt.axvline(V_inj,ls="--",lw=1.0,color="w")
         cb = plt.colorbar()
         cb.set_label(r"Significance [$\sigma$]",rotation=270,labelpad=40)
         plt.savefig(nam_fig,bbox_inches="tight")
