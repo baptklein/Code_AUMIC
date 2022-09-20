@@ -68,7 +68,7 @@ sig_out  = 5.0                          ### Threshold for outliers identificatio
 deg_px   = 2                            ### Degree of the polynomial fit to the distribution of pixel STDs
 
 ### Parameters for detrending with airmass
-det_airmass = False
+det_airmass = True
 deg_airmass = 2
 
 ### Parameters PCA
