@@ -27,6 +27,8 @@ if instrument == 'IGRINS' or 'igrins':
     outroot += 'igrins/'
 elif instrument =='SPIROU' or 'spirou':
     outroot += 'spirou/'
+else:
+    sys.exit('choose spirou or igrins')
 
 filename = outroot+"data_igrins.pkl" ### Name of the pickle file to read the data from
 
@@ -217,36 +219,67 @@ for nn in range(nord):
             fig.colorbar(mp1,ax=axes[0])
             axes[0].set_title('Order {}'.format(O.number))
 
-        ### First compute reference spectrum in the Geocentric frame
-        I_med2  = np.median(np.concatenate((I_cl[:n_ini],I_cl[n_end:]),axis=0),axis=0)
-        I_sub2  = np.zeros(I_cl.shape)
+        ### STEP 1 -- remove master out-of-transits
+        # First in Earth frame, then stellar for IGRINS (opposite for SPIRou)
+        if instrument == 'IGRINS' or 'igrins':
+            ### First compute reference spectrum in the Geocentric frame
+            I_med2  = np.median(np.concatenate((I_cl[:n_ini],I_cl[n_end:]),axis=0),axis=0)
+            I_sub2  = np.zeros(I_cl.shape)
 
-        # for each epoch
-        for kk in range(len(I_cl)):
-            X          = np.array([np.ones(len(I_med2)),I_med2],dtype=float).T
-            p,pe       = LS(X,I_cl[kk])
-            Ip         = np.dot(X,p)
-            I_sub2[kk] = I_cl[kk]/Ip#I_med2
-        ### If the order is kept - Remove high-SNR(?) out-of-transit reference spectrum
-        ### Start by computing mean spectrum in the stellar rest frame
-        V_cl      = c0*(W_cl/O.W_mean-1.)
-        I_bary    = move_spec(V_cl,I_sub2,V_corr,sig_g)  ## Shift to stellar rest frame
-        I_med     = np.median(np.concatenate((I_bary[:n_ini],I_bary[n_end:]),axis=0),axis=0) ## Compute median out-of-transit
-        I_med_geo = move_spec(V_cl,np.array([I_med]),-1.*V_corr,sig_g)  ## Move back ref spectrum to Geocentric frame
-        I_sub1    = np.zeros(I_sub2.shape)
+            # for each epoch
+            for kk in range(len(I_cl)):
+                X          = np.array([np.ones(len(I_med2)),I_med2],dtype=float).T
+                p,pe       = LS(X,I_cl[kk])
+                Ip         = np.dot(X,p)
+                I_sub2[kk] = I_cl[kk]/Ip
+            ### Now mean spectrum in the stellar rest frame
+            V_cl      = c0*(W_cl/O.W_mean-1.)
+            I_bary    = move_spec(V_cl,I_sub2,V_corr,sig_g)  ## Shift to stellar rest frame
+            I_med     = np.median(np.concatenate((I_bary[:n_ini],I_bary[n_end:]),axis=0),axis=0) ## Compute median out-of-transit
+            I_med_geo = move_spec(V_cl,np.array([I_med]),-1.*V_corr,sig_g)  ## Move back ref spectrum to Geocentric frame
+            I_sub1    = np.zeros(I_sub2.shape)
 
+            # a stretch/shift of the stellar ref spec to each spectrum (then remove)
+            for kk in range(len(I_cl)):
+                X          = np.array([np.ones(len(I_med_geo[kk])),I_med_geo[kk]],dtype=float).T
+                p,pe       = LS(X,I_sub2[kk])
+                Ip         = np.dot(X,p)
+                I_sub1[kk] = I_sub2[kk]/Ip
 
-        # a stretch/shift of the stellar ref spec to each spectrum (then remove)?
-        for kk in range(len(I_cl)):
-            X          = np.array([np.ones(len(I_med_geo[kk])),I_med_geo[kk]],dtype=float).T
-            p,pe       = LS(X,I_sub2[kk])
-            Ip         = np.dot(X,p)
-            I_sub1[kk] = I_sub2[kk]/Ip
+            ### Remove extremities to avoid interpolation errors
+            W_sub = W_cl[N_bor:-N_bor]
+            I_sub = I_sub1[:,N_bor:-N_bor]
 
+        elif instrument =='SPIROU' or 'spirou':
+            ### If the order is kept - Remove high-SNR(?) out-of-transit reference spectrum
+            ### Start by computing mean spectrum in the stellar rest frame
+            V_cl      = c0*(W_cl/O.W_mean-1.)
+            I_bary    = move_spec(V_cl,I_cl,V_corr,sig_g)  ## Shift to stellar rest frame
+            I_med     = np.median(np.concatenate((I_bary[:n_ini],I_bary[n_end:]),axis=0),axis=0) ## Compute median out-of-transit
+            I_med_geo = move_spec(V_cl,np.array([I_med]),-1.*V_corr,sig_g)  ## Move back ref spectrum to Geocentric frame
+            I_sub1    = np.zeros(I_cl.shape)
 
-        ### Remove extremities to avoid interpolation errors
-        W_sub = W_cl[N_bor:-N_bor]
-        I_sub = I_sub1[:,N_bor:-N_bor]
+            for kk in range(len(I_cl)):
+                X          = np.array([np.ones(len(I_med_geo[kk])),I_med_geo[kk]],dtype=float).T
+                p,pe       = LS(X,I_cl[kk])
+                Ip         = np.dot(X,p)
+                I_sub1[kk] = I_cl[kk]/Ip
+
+            ### First compute reference spectrum in the Geocentric frame
+            I_med2  = np.median(np.concatenate((I_sub1[:n_ini],I_sub1[n_end:]),axis=0),axis=0)
+            I_sub2  = np.zeros(I_sub1.shape)
+
+            # for each epoch
+            for kk in range(len(I_cl)):
+                X          = np.array([np.ones(len(I_med2)),I_med2],dtype=float).T
+                p,pe       = LS(X,I_sub1[kk])
+                Ip         = np.dot(X,p)
+                I_sub2[kk] = I_sub1[kk]/Ip#I_med2
+
+            ### Remove extremities to avoid interpolation errors
+            W_sub = W_cl[N_bor:-N_bor]
+            I_sub = I_sub2[:,N_bor:-N_bor]
+
         ### END of STEP 1
 
         ### STEP 2 -- NORMALISATION AND OUTLIER REMOVAL
