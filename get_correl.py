@@ -42,19 +42,20 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    model_dir = 'pRT_models/'
     data_dir  = 'Input_data/'
     if args.instrument == 'igrins' or args.instrument == 'IGRINS':
         data_dir += 'igrins/'
+        instrument = 'igrins'
     elif args.instrument == 'spirou' or args.instrument == 'SPIROU':
         data_dir += 'spirou/'
+        instrument = 'spirou'
 
     if args.inject:
         print("loading in spectra with injected signal...")
         data_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}/".format(args.inj_amp,\
         args.inj_Kp,args.inj_vsys)
-    if args.red_mode=='pca' or args.red_mode=='PCA':
-        data_dir+= 'PCA/'
+    if (args.red_mode=='pca' or args.red_mode=='PCA') and instrument=='igrins':
+        data_dir+= 'PCA/' # this is just a temporary hack..should really sort the directories
 
     if args.aligned:
         filename = "reduced_aligned.pkl"
@@ -72,15 +73,22 @@ if __name__ == "__main__":
     species     = ['CO'] # edit to include species in model
     sp          = '_'.join(i for i in species)
     solar       = '1x'
-    model_dir   = 'pRT_models/'
-    model_dir  += 'aumicb_{}Solar_{}_R1M/'.format(solar,sp)
+    CO_ratio    = '1.0'
     order_by_order = False # turn off these models for the moment (may be more efficient in future)
-    if order_by_order:
-        model_dir += 'order_by_order/'
+    if order_by_order and instrument=='spirou':
+        sys.exit('turn of order models for SPIRou')
+    if instrument=='igrins':
+        model_dir   = 'pRT_models/' # works with pRT_make_spec.py
+        model_dir  += 'aumicb_{}Solar_{}_R1M/'.format(solar,sp)
+        if order_by_order:
+            model_dir += 'order_by_order/'
+    elif instrument=='spirou':
+        model_dir = 'Models/{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
+
 
     # results file
-    save_dir      = 'xcorr_result/'+'{}Solar_{}_R1M/'.format(solar,sp)
-    simple        = True # turn on (true)/off simple pearsonr cross-correlation
+    save_dir      = 'xcorr_result/'+'{}/'.format(instrument)+'{}Solar_{}_R1M/'.format(solar,sp)
+    simple        = False # turn on (true)/off simple pearsonr cross-correlation
     if simple:
         save_dir += 'pearsonr/'
         nam_res   = save_dir+'corr_velocity{}{}.pkl'.format(al,mk)
@@ -117,9 +125,12 @@ if __name__ == "__main__":
 
 
     ### READ data
-    print("Read data from",filename)
-    with open(filename,'rb') as specfile:
-        orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask = pickle.load(specfile)
+    print("Read data from",data_dir+filename)
+    with open(data_dir+filename,'rb') as specfile:
+        if instrument=='igrins':
+            orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask = pickle.load(specfile)
+        elif instrument=='spirou':
+            orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN = pickle.load(specfile)
     nord     = len(orders)
 
     ### Select orders for the correlation
@@ -161,20 +172,34 @@ if __name__ == "__main__":
     #maxf           = ndimage.maximum_filter(T_depth,size=10000)
 
     if not order_by_order:
-        mod_file = model_dir + 'template_det1.pic'
-        W_mod,T_depth = pickle.load(open(mod_file,'rb'))
+        if instrument=='igrins':
+            mod_file = model_dir + 'template_det1.pic'
+            W_mod,T_depth = pickle.load(open(mod_file,'rb'))
+        elif instrument=='spirou':
+            mod_file = model_dir+'pRT_data_full_CH4_CO_CO2_H2O_NH3.dat'
+            W_mod = []
+            T_depth = []
+            with open(mod_file, 'r') as data:
+                lines = data.readlines()
+                data.close()
+            for line in lines[4:]:
+                v = line.split(' ')
+                W_mod.append(float(v[0]))
+                T_depth.append(float(v[1].split('\n')[0]))
+            W_mod = np.array(W_mod)/1e3
+            T_depth = np.array(T_depth)
         for kk,O in enumerate(list_ord):
             Wmin,Wmax = 0.95*O.W_fin.min(),1.05*O.W_fin.max()
             indm      = np.where((W_mod>Wmin)&(W_mod<Wmax))[0]
-            W_sel     = W_mod[indm]
-            O.Wm      = W_sel
-            O.Im      = T_depth[indm]
+            O.Wm      = W_mod#indm]
+            O.Im      = T_depth#[indm]
 
     vtot = np.linspace(-200, 200, 100)
 
     if simple:
         print("\nRunning pearsonr cross-correlation.")
         # for now during testing phase - note these plots include out of transit epochs
+        # does this not work with order_by_order?
         #----
         vsys_time,vsys_kp = simple_correlation(np.array(list_ord),window,phase,Kp,vtot,\
                             plot=True,savedir=save_dir)
@@ -201,7 +226,7 @@ if __name__ == "__main__":
 
 
         ### Plot correlation + 1D cut
-        K_cut   = 120.2
+        K_cut   = 120.2 # expected 83 km/s
         V_cut   = 0.0
         ind_v   = np.argmin(np.abs(Vsys-V_cut))
         ind_k   = np.argmin(np.abs(Kp-K_cut))
