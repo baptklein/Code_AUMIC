@@ -35,7 +35,7 @@ C_O_ratios = [0.5, 1.0, 1.5]
 # min/max_wavelength: wavelength bounds (nm) over which to test.
 # orders = 'yes' or 'no': choose whether to overlay the spirou diffraction grating orders on the spectrum - default is yes.
 # species = []: A list containing the species to produce the spectra for - default is all species: ['CH4', 'CO', 'CO2', 'H2O', 'NH3']
-def generate_spectrum(min_wavelength, max_wavelength, orders='yes', species=['CH4', 'CO', 'CO2', 'H2O', 'NH3']):
+def generate_spectrum(min_wavelength, max_wavelength, orders='yes', species=['CH4']):
     for metallicity in metallicities:
         for ratio in C_O_ratios:
             # Check if output directory exists, create it if not
@@ -465,7 +465,7 @@ def clear_cloudy(min_wavelength, max_wavelength, species=['CO', 'CH4', 'H2O', 'N
 #       generate_spectrum(min_wavelength=j, max_wavelength=j+100, orders='yes', species=[species[i]])
 
 # To generate full spectra over all 100nm wavelength chunks:
-for i in range(1000,2500,100):
+for i in range(900,2500,100):
     generate_spectrum(min_wavelength=i, max_wavelength=i+100, orders='yes')
 
 # Plotting the contribution spectrum: (default all species)
