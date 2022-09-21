@@ -70,7 +70,7 @@ if __name__ == "__main__":
         mk       = ""
 
     # model files
-    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CH4'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'

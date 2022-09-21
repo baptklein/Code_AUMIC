@@ -58,8 +58,6 @@ def simple_correlation(list_ord,window,phase,Kp,Vtot,plot=False,savedir=None):
     while window[n_ini]==0.0: n_ini += 1
     n_end     = np.copy(n_ini)
     while window[n_end]!=0.0: n_end += 1
-    print(n_ini,n_end)
-
 
     vsys_time = []
     vsys_kp   = []
