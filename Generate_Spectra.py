@@ -20,7 +20,7 @@ matplotlib.rc('axes', **axes)
 # INPUT: also see further inputs later in code e.g. output directories
 
 # Input atmospheric metallicities of planet to produce spectra for, in units of solar metallicity:
-metallicities = [1,10,100,1000,10000]
+metallicities = [1,10,100,1000]
 
 # Input atmospheric C/O ratios to produce spectra for:
 C_O_ratios = [0.5, 1.0, 1.5]
@@ -35,7 +35,7 @@ C_O_ratios = [0.5, 1.0, 1.5]
 # min/max_wavelength: wavelength bounds (nm) over which to test.
 # orders = 'yes' or 'no': choose whether to overlay the spirou diffraction grating orders on the spectrum - default is yes.
 # species = []: A list containing the species to produce the spectra for - default is all species: ['CH4', 'CO', 'CO2', 'H2O', 'NH3']
-def generate_spectrum(min_wavelength, max_wavelength, orders='yes', species=['CH4']):
+def generate_spectrum(min_wavelength, max_wavelength, orders='yes', species=['CO2']):
     for metallicity in metallicities:
         for ratio in C_O_ratios:
             # Check if output directory exists, create it if not
