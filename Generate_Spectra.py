@@ -35,7 +35,7 @@ C_O_ratios = [0.5, 1.0, 1.5]
 # min/max_wavelength: wavelength bounds (nm) over which to test.
 # orders = 'yes' or 'no': choose whether to overlay the spirou diffraction grating orders on the spectrum - default is yes.
 # species = []: A list containing the species to produce the spectra for - default is all species: ['CH4', 'CO', 'CO2', 'H2O', 'NH3']
-def generate_spectrum(min_wavelength, max_wavelength, orders='yes', species=['CO2']):
+def generate_spectrum(min_wavelength, max_wavelength, orders='yes', species=['H2O']):
     for metallicity in metallicities:
         for ratio in C_O_ratios:
             # Check if output directory exists, create it if not
