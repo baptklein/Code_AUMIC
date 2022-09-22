@@ -210,7 +210,6 @@ def read_data_spirou(repp,list_ord,nord):
         O.I_atm = np.array(O.I_atm,dtype=float)
     return list_ord,airmass,bjd,berv,snr_mat
 
-
 # -----------------------------------------------------------
 # Get transit window -- requires batman python module
 # Uncomment lines below to use batman module to compute transit flux
