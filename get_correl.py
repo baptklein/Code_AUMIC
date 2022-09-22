@@ -31,6 +31,8 @@ if __name__ == "__main__":
          (for IGRINS data)")
     parser.add_argument("--masked", action="store_true", default=False,\
         help="use the masked spectra")
+    parser.add_argument("--airmass", action="store_true", default=False,\
+        help="use the airmass-detrended spectra")
     parser.add_argument("--inject", action="store_true", default=False,\
         help="if true, use spectra with injected signal")
     parser.add_argument("--inj-Kp", type=float, default=0.0, \
@@ -55,8 +57,10 @@ if __name__ == "__main__":
         print("loading in spectra with injected signal...")
         data_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}/".format(args.inj_amp,\
         args.inj_Kp,args.inj_vsys)
-    if (args.red_mode=='pca' or args.red_mode=='PCA') and instrument=='igrins':
-        data_dir+= 'PCA/' # this is just a temporary hack..should really sort the directories
+    if args.airmass:
+        data_dir += 'airmass/'
+    if args.red_mode=='pca' or args.red_mode=='PCA':
+        data_dir+= 'PCA/'
 
     if args.aligned:
         filename = "reduced_aligned.pkl"
@@ -71,7 +75,7 @@ if __name__ == "__main__":
         mk       = ""
 
     # model files
-    species     = ['H2O'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -92,12 +96,17 @@ if __name__ == "__main__":
     simple        = False # turn on (true)/off simple pearsonr cross-correlation
     if simple:
         save_dir += 'pearsonr/'
-        nam_res   = save_dir+'corr_velocity_{}_{}{}.pkl'.format(sp,al,mk)
+        nam_res   = save_dir+'corr_velocity_{}_{}{}'.format(sp,al,mk)
     else:
         save_dir += 'boucher/'
-        nam_res   = save_dir+'corr_Kp_vsys_{}_{}{}.pkl'.format(sp,al,mk)
-        nam_fig   = save_dir+'Kp_vsys_map_ALLorders_{}_{}{}.png'.format(sp,al,mk)
+        nam_res   = save_dir+'corr_Kp_vsys_{}_{}{}'.format(sp,al,mk)
+        nam_fig   = save_dir+'Kp_vsys_map_ALLorders_{}_{}{}'.format(sp,al,mk)
 
+    if args.inject:
+        nam_res  += '_inj-amp{}_Kp{}_vsys{}'.format(args.inj_amp,args.inj_Kp,args.inj_vsys)
+        nam_fig  += '_inj-amp{}_Kp{}_vsys{}'.format(args.inj_amp,args.inj_Kp,args.inj_vsys)
+    nam_res      += '.pkl'
+    nam_fig      += '.png'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -126,7 +135,9 @@ if __name__ == "__main__":
     with open(data_dir+filename,'rb') as specfile:
         if instrument=='igrins':
             orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask = pickle.load(specfile)
-        elif instrument=='spirou':
+        elif instrument=='spirou' and args.airmass:
+            orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask = pickle.load(specfile)
+        else:
             orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN = pickle.load(specfile)
     nord     = len(orders)
 
@@ -217,7 +228,7 @@ if __name__ == "__main__":
 
     #### Compute statistics and plot the map
     # Indicate regions to exclude when computing the NOISE level from the correlation map
-    Kp_lim      = [80.0,160.0]   # Exclude this Kp range we
+    Kp_lim      = [120.0,220.0]   # Exclude this Kp range we
     Vsys_lim    = [-15.,15.]
     snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr,Kp_lim,Vsys_lim)
     sig_fin     = np.sum(np.sum(corr[:,:,ind_sel,:],axis=3),axis=2)/snrmap_fin
