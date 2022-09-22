@@ -18,6 +18,7 @@ from functions import *
 from correlation_fcts import *
 from scipy import ndimage
 import argparse
+from pathlib import Path
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -70,7 +71,7 @@ if __name__ == "__main__":
         mk       = ""
 
     # model files
-    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CH4'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -100,11 +101,7 @@ if __name__ == "__main__":
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    #name_model = "Model/Mod_boucher.txt"
-    #name_wav   = "Model/Wave_boucher.txt"
-    #filename   = sys.argv[1]  #"Results/New/Sep18/reduced_sep18.pkl"
-    #nam_fig    = sys.argv[2] #"Results/New/Sep18/correl_sep18.png"
-    #nam_res    = sys.argv[3] #"Results/New/Sep18/correl_sep18.pkl"
+
 
 
     Rs         = 261413.0   # Stellar radius [km]
@@ -164,6 +161,9 @@ if __name__ == "__main__":
         list_ord.append(O)
     print("DONE\n")
 
+    ind_sel = []
+    for kk,oo in enumerate(list_ord):
+        if oo.number in ord_sel: ind_sel.append(kk)
 
     # Use the below for a single global model
     #W_mod,I_mod    = np.loadtxt(name_wav),np.loadtxt(name_model)
@@ -196,59 +196,63 @@ if __name__ == "__main__":
 
     vtot = np.linspace(-200, 200, 100)
 
-    if simple:
-        print("\nRunning pearsonr cross-correlation.")
-        # for now during testing phase - note these plots include out of transit epochs
-        # does this not work with order_by_order?
-        #----
-        vsys_time,vsys_kp = simple_correlation(np.array(list_ord),window,phase,Kp,vtot,\
-                            plot=True,savedir=save_dir)
+    # check if cross-correlation already computed
+    if Path(nam_res).is_file():
+        with open(nam_res, 'rb') as specfile:
+            Vsys,Kp,corr,sn_map = pickle.load(specfile)
+        print("cross-correlation result loaded")
 
-        savedata = (vsys_time,vsys_kp)
-        with open(nam_res, 'wb') as specfile:
-            pickle.dump(savedata,specfile)
-        print("DONE")
-        #----
     else:
-        ### Correlation
-        ind_sel = []
-        for kk,oo in enumerate(list_ord):
-            if oo.number in ord_sel: ind_sel.append(kk)
-        corr = compute_correlation(np.array(list_ord)[ind_sel],window,phase,Kp,Vsys,V_shift)
+        if simple:
+            print("\nRunning pearsonr cross-correlation.")
+            # for now during testing phase - note these plots include out of transit epochs
+            # does this not work with order_by_order?
+            #----
+            vsys_time,vsys_kp = simple_correlation(np.array(list_ord),window,phase,Kp,vtot,\
+                                plot=True,savedir=save_dir)
 
-        #### Compute statistics and plot the map
-        # Indicate regions to exclude when computing the NOISE level from the correlation map
-        Kp_lim      = [80.0,160.0]   # Exclude this Kp range we
-        Vsys_lim    = [-15.,15.]
-        snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr,Kp_lim,Vsys_lim)
-        sig_fin     = np.sum(np.sum(corr[:,:,ind_sel,:],axis=3),axis=2)/snrmap_fin
-
-
-
-        ### Plot correlation + 1D cut
-        K_cut   = 83. # expected 83 km/s
-        V_cut   = 0.0
-        ind_v   = np.argmin(np.abs(Vsys-V_cut))
-        ind_k   = np.argmin(np.abs(Kp-K_cut))
-        sn_map  = sig_fin
-        sn_cutx = sn_map[:,ind_v]
-        sn_cuty = sn_map[ind_k]
-        cmap    = "gist_heat"
-
-        ### Save data
-        savedata = (Vsys,Kp,corr,sn_map)
-        with open(nam_res, 'wb') as specfile:
-            pickle.dump(savedata,specfile)
-        print("DONE")
-
-        ### Get and display statistics
-        p_best,K_best,K_sup,K_inf,V_best,V_sup,V_inf = get_statistics(Vsys,Kp,sig_fin)
-
-        if args.inject:
-            V_cut = round(args.inj_vsys,1)
-            K_cut = round(args.inj_Kp,1)
+            savedata = (vsys_time,vsys_kp)
+            with open(nam_res, 'wb') as specfile:
+                pickle.dump(savedata,specfile)
+            print("DONE")
+            exit()
+            #----
         else:
-            V_cut = round(V_best,1)
-            K_cut = round(K_best,1)
-        plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True)
-        #plot_correlation_map(Vsys,Kp,sn_map,nam_fig,K_cut,V_cut,cmap,sn_cutx,sn_cuty,20)
+            corr = compute_correlation(np.array(list_ord)[ind_sel],window,phase,Kp,Vsys,V_shift)
+
+    #### Compute statistics and plot the map
+    # Indicate regions to exclude when computing the NOISE level from the correlation map
+    Kp_lim      = [80.0,160.0]   # Exclude this Kp range we
+    Vsys_lim    = [-15.,15.]
+    snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr,Kp_lim,Vsys_lim)
+    sig_fin     = np.sum(np.sum(corr[:,:,ind_sel,:],axis=3),axis=2)/snrmap_fin
+
+
+
+    ### Plot correlation + 1D cut
+    K_cut   = 83. # expected 83 km/s
+    V_cut   = 0.0
+    ind_v   = np.argmin(np.abs(Vsys-V_cut))
+    ind_k   = np.argmin(np.abs(Kp-K_cut))
+    sn_map  = sig_fin
+    sn_cutx = sn_map[:,ind_v]
+    sn_cuty = sn_map[ind_k]
+    cmap    = "gist_heat"
+
+    ### Save data
+    savedata = (Vsys,Kp,corr,sn_map)
+    with open(nam_res, 'wb') as specfile:
+        pickle.dump(savedata,specfile)
+    print("DONE")
+
+    ### Get and display statistics
+    p_best,K_best,K_sup,K_inf,V_best,V_sup,V_inf = get_statistics(Vsys,Kp,sig_fin)
+
+    if args.inject:
+        V_cut = round(args.inj_vsys,1)
+        K_cut = round(args.inj_Kp,1)
+    else:
+        V_cut = round(V_best,1)
+        K_cut = round(K_best,1)
+    plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True)
+    #plot_correlation_map(Vsys,Kp,sn_map,nam_fig,K_cut,V_cut,cmap,sn_cutx,sn_cuty,20)

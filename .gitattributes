@@ -4,3 +4,7 @@ Input_data/igrins/reduced_1.pkl filter=lfs diff=lfs merge=lfs -text
 Input_data/igrins/PCA/reduced_1.pkl filter=lfs diff=lfs merge=lfs -text
 Input_data/igrins/aligned/airmass/PCA/reduced_1.pkl filter=lfs diff=lfs merge=lfs -text
 Input_data/spirou/data_spirou.pkl filter=lfs diff=lfs merge=lfs -text
+xcorr_result/spirou/1x_metallicity_1.0_CO_ratio/boucher/corr_Kp_vsys_CO.pkl filter=lfs diff=lfs merge=lfs -text
+xcorr_result/spirou/1x_metallicity_1.0_CO_ratio/boucher/corr_Kp_vsys_CH4_.pkl filter=lfs diff=lfs merge=lfs -text
+xcorr_result/spirou/1x_metallicity_1.0_CO_ratio/boucher/corr_Kp_vsys_CH4_CO_CO2_H2O_NH3.pkl filter=lfs diff=lfs merge=lfs -text
+xcorr_result/spirou/1x_metallicity_1.0_CO_ratio/boucher/corr_Kp_vsys_CO_.pkl filter=lfs diff=lfs merge=lfs -text

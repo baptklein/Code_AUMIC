@@ -16,7 +16,7 @@ Created in Aug 2022
 import sys
 
 # You may need to append your path to installed python packages, for me they are in the anaconda folder
-#sys.path.append("/Users/pearceo/opt/anaconda3/lib/python3.9/site-packages")
+sys.path.append("/Users/meech/")
 import numpy as np
 import time
 from petitRADTRANS import Radtrans
