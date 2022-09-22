@@ -20,8 +20,9 @@ import time
 from functions import *
 
 ############################# VERSION ADAPTED FOR IGRINS DATA
-outroot = 'Input_data/'
-instrument = 'igrins'
+outroot    = 'Input_data/'
+instrument = 'spirou'
+c0         = Constants().c0
 
 if instrument == 'IGRINS' or 'igrins':
     outroot += 'igrins/'
@@ -30,7 +31,8 @@ elif instrument =='SPIROU' or 'spirou':
 else:
     sys.exit('choose spirou or igrins')
 
-filename = outroot+"data_igrins.pkl" ### Name of the pickle file to read the data from
+
+filename = outroot+"data_{}.pkl".format(instrument) ### Name of the pickle file to read the data from
 
 ### Read data in pickle format
 ### Namely:
@@ -52,12 +54,18 @@ with open(filename,'rb') as specfile:
     A = pickle.load(specfile)
 orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 
-align    = True      # optionally align the spectra
+
+### Injection parameters - optionally inject a planet model
+inject   = True
+inj_amp  = 10.
+inj_Kp   = 180. #km/s
+inj_vsys = 10.  #km/s
 
 
 ### Data reduction parameters
-dep_min  = 0.5       # remove all data when telluric relative absorption < 1 - dep_min
-thres_up = 0.03      # Remove the line until reaching 1-thres_up
+align    = False      # optionally align the spectra
+dep_min  = 0.5        # remove all data when telluric relative absorption < 1 - dep_min
+thres_up = 0.03       # Remove the line until reaching 1-thres_up
 Npt_lim  = 2000       # If the order contains less than Npt_lim points, it is discarded from the analysis
 
 ### Interpolation parameters
@@ -81,6 +89,8 @@ auto_tune   = True                             ### Automatic tuning of number of
 ### Parameters for masking
 fac       = 2.0 # factor of std at which to mask
 
+if inject:
+    outroot += 'inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}/'.format(inj_amp,inj_Kp,inj_vsys)
 if align:
     outroot += 'aligned/'
 if det_airmass:
@@ -93,6 +103,28 @@ os.makedirs(outroot,exist_ok=True)
 os.makedirs(outroot+'masked/',exist_ok=True)
 
 
+if inject:
+    # load model
+    # model files
+    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    sp          = '_'.join(i for i in species)
+    solar       = '1x'
+    CO_ratio    = '1.0'
+    model_dir = 'Models/{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
+    mod_file = model_dir+'pRT_data_full_{}.dat'.format(sp)
+    W_mod = []
+    T_depth = []
+    with open(mod_file, 'r') as data:
+        lines = data.readlines()
+        data.close()
+    for line in lines[4:]:
+        v = line.split(' ')
+        W_mod.append(float(v[0]))
+        T_depth.append(float(v[1].split('\n')[0]))
+    W_mod    = np.array(W_mod)/1e3
+    T_depth  = np.array(T_depth)
+    mod_func = interpolate.interp1d(W_mod,T_depth,bounds_error=False)
+
 ### Create order objects
 nord     = len(orders)
 print(nord,"orders detected")
@@ -100,7 +132,19 @@ list_ord = []
 for nn in range(nord):
     O        = Order(orders[nn])
     O.W_raw  = np.array(WW[nn],dtype=float)
-    O.I_raw  = np.array(Ir[nn],dtype=float)
+    if inject:
+        print('\n injecting a model of {}'.format(sp))
+        print('\n at a Kp: {} km/s, vsys: {} km/s'.format(inj_Kp,inj_vsys))
+        print('\n model scaled by a factor of {}'.format(inj_amp))
+        # get wlens in planet rest frame
+        vp           = vsys_inj*1e3 + berv*1e3 + inj_Kp*1e3*np.sin(2*np.pi*phase)
+        shift_fac    = 1.0 / (1.0 + vp / (c0*1e3))
+        wlens_planet = WW[None,:] * shift_fac[:,None]
+        model_prep   = mod_func(wlens_planet)
+        flux         = np.array(Ir[nn],dtype=float)
+        flux        *= (1 + model_prep)
+    else:
+        O.I_raw  = np.array(Ir[nn],dtype=float)
     #O.blaze  = np.array(blaze[nn],dtype=float)
     #O.I_atm  = np.array(Ia[nn],dtype=float)
     O.SNR    = np.array(SN[nn],dtype=float)
@@ -112,7 +156,6 @@ print("DONE\n")
 ind_rem     = []
 V_corr      = vstar - berv                  ### Geo-to-bary correction
 n_ini,n_end = get_transit_dates(window)     ### Get transits start and end indices
-c0          = Constants().c0
 t0          = time.time()
 NCF         = np.zeros(nord)
 
@@ -380,6 +423,8 @@ for nn in range(nord):
                 plt.close()
 
         txt = str(O.number) + "  " + str(len(O.W_fin)) + "  " + str(np.mean(O.SNR)) + "  " + str(np.mean(O.SNR_mes)) + "  " + str(np.mean(O.SNR_mes_pca)) + "  " + str(n_com) + "\n"
+        if inject:
+            txt += "injected model found at: {}, Kp: {}, vsys: {}, inj-amp: {}".format(mod_file,inj_Kp,inj_vsys,inj_ampg)
         file.write(txt)
 
 print("DATA REDUCTION DONE\n")
