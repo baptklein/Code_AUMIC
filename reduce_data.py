@@ -24,9 +24,9 @@ outroot    = 'Input_data/'
 instrument = 'spirou'
 c0         = Constants().c0
 
-if instrument == 'IGRINS' or 'igrins':
+if instrument == 'IGRINS' or instrument == 'igrins':
     outroot += 'igrins/'
-elif instrument =='SPIROU' or 'spirou':
+elif instrument =='SPIROU' or instrument == 'spirou':
     outroot += 'spirou/'
 else:
     sys.exit('choose spirou or igrins')
@@ -121,9 +121,9 @@ if inject:
         v = line.split(' ')
         W_mod.append(float(v[0]))
         T_depth.append(float(v[1].split('\n')[0]))
-    W_mod    = np.array(W_mod)/1e3
+    W_mod    = np.array(W_mod)
     T_depth  = np.array(T_depth)
-    mod_func = interpolate.interp1d(W_mod,T_depth,bounds_error=False)
+    mod_func = interpolate.interp1d(W_mod,T_depth)
 
 ### Create order objects
 nord     = len(orders)
@@ -137,12 +137,13 @@ for nn in range(nord):
         print('\n at a Kp: {} km/s, vsys: {} km/s'.format(inj_Kp,inj_vsys))
         print('\n model scaled by a factor of {}'.format(inj_amp))
         # get wlens in planet rest frame
-        vp           = vsys_inj*1e3 + berv*1e3 + inj_Kp*1e3*np.sin(2*np.pi*phase)
-        shift_fac    = 1.0 / (1.0 + vp / (c0*1e3))
-        wlens_planet = WW[None,:] * shift_fac[:,None]
+        vp           = inj_vsys - berv + inj_Kp*np.sin(2*np.pi*phase)
+        shift_fac    = 1.0 / (1.0 + vp/c0)
+        wlens_planet = O.W_raw[None,:] * shift_fac[:,None]
         model_prep   = mod_func(wlens_planet)
         flux         = np.array(Ir[nn],dtype=float)
-        flux        *= (1 + model_prep)
+        flux        *= (1 + inj_amp*model_prep)
+        O.I_raw      = flux
     else:
         O.I_raw  = np.array(Ir[nn],dtype=float)
     #O.blaze  = np.array(blaze[nn],dtype=float)
@@ -192,9 +193,8 @@ for nn in range(nord):
     nep,npix  = I_cl.shape
 
     # purge nans and negatives
-    I_cl[I_cl<0] = 0.
     I_cl[np.isnan(I_cl)] = 0.
-
+    I_cl[I_cl<0] = 0.
 
     ### If the order does not contain enough points, it is discarded
     if len(W_cl) < Npt_lim:
@@ -424,7 +424,7 @@ for nn in range(nord):
 
         txt = str(O.number) + "  " + str(len(O.W_fin)) + "  " + str(np.mean(O.SNR)) + "  " + str(np.mean(O.SNR_mes)) + "  " + str(np.mean(O.SNR_mes_pca)) + "  " + str(n_com) + "\n"
         if inject:
-            txt += "injected model found at: {}, Kp: {}, vsys: {}, inj-amp: {}".format(mod_file,inj_Kp,inj_vsys,inj_ampg)
+            txt += "injected model found at: {}, Kp: {}, vsys: {}, inj-amp: {}".format(mod_file,inj_Kp,inj_vsys,inj_amp)
         file.write(txt)
 
 print("DATA REDUCTION DONE\n")
@@ -441,7 +441,7 @@ plot_spectrum_dispersion(list_ord_fin,nam_fig,instrument)
 print("DONE\n")
 
 ### Save data for correlation
-print("\nData saved in",outroot+nam_fin)
+print("\nData saved in",nam_fin)
 Ir    = []
 WW    = []
 Imask = []
