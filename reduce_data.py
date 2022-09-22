@@ -125,6 +125,11 @@ if inject:
     T_depth  = np.array(T_depth)
     mod_func = interpolate.interp1d(W_mod,T_depth)
 
+ind_rem     = []
+V_corr      = vstar - berv                  ### Geo-to-bary correction
+n_ini,n_end = get_transit_dates(window)     ### Get transits start and end indices
+
+
 ### Create order objects
 nord     = len(orders)
 print(nord,"orders detected")
@@ -138,11 +143,12 @@ for nn in range(nord):
         print('\n model scaled by a factor of {}'.format(inj_amp))
         # get wlens in planet rest frame
         vp           = inj_vsys - berv + inj_Kp*np.sin(2*np.pi*phase)
+        vp           = vp[n_ini:n_end]
         shift_fac    = 1.0 / (1.0 + vp/c0)
         wlens_planet = O.W_raw[None,:] * shift_fac[:,None]
         model_prep   = mod_func(wlens_planet)
         flux         = np.array(Ir[nn],dtype=float)
-        flux        *= (1 + inj_amp*model_prep)
+        flux[n_ini:n_end,:] *= (1 + inj_amp*model_prep)
         O.I_raw      = flux
     else:
         O.I_raw  = np.array(Ir[nn],dtype=float)
@@ -153,12 +159,9 @@ for nn in range(nord):
     list_ord.append(O)
 print("DONE\n")
 
-
-ind_rem     = []
-V_corr      = vstar - berv                  ### Geo-to-bary correction
-n_ini,n_end = get_transit_dates(window)     ### Get transits start and end indices
 t0          = time.time()
 NCF         = np.zeros(nord)
+
 
 #### Main reduction
 print("START DATA REDUCTION")
