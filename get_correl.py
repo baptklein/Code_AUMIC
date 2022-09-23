@@ -53,10 +53,26 @@ if __name__ == "__main__":
         data_dir += 'spirou/'
         instrument = 'spirou'
 
+    # model files
+    species     = ['CH4','CO','CO2','H2O','NH3'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    sp          = '_'.join(i for i in species)
+    solar       = '1x'
+    CO_ratio    = '1.0'
+    order_by_order = False # turn off these models for the moment (may be more efficient in future)
+    if order_by_order and instrument=='spirou':
+        sys.exit('turn of order models for SPIRou')
+    if instrument=='igrins':
+        model_dir   = 'pRT_models/' # works with pRT_make_spec.py
+        model_dir  += 'aumicb_{}Solar_{}_R1M/'.format(solar,sp)
+        if order_by_order:
+            model_dir += 'order_by_order/'
+    elif instrument=='spirou':
+        model_dir = 'Models/{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
+
     if args.inject:
         print("loading in spectra with injected signal...")
-        data_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}/".format(args.inj_amp,\
-        args.inj_Kp,args.inj_vsys)
+        data_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}_{}/".format(args.inj_amp,\
+        args.inj_Kp,args.inj_vsys,sp)
     if args.airmass:
         data_dir += 'airmass/'
     if args.red_mode=='pca' or args.red_mode=='PCA':
@@ -74,21 +90,7 @@ if __name__ == "__main__":
     else:
         mk       = ""
 
-    # model files
-    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
-    sp          = '_'.join(i for i in species)
-    solar       = '1x'
-    CO_ratio    = '1.0'
-    order_by_order = False # turn off these models for the moment (may be more efficient in future)
-    if order_by_order and instrument=='spirou':
-        sys.exit('turn of order models for SPIRou')
-    if instrument=='igrins':
-        model_dir   = 'pRT_models/' # works with pRT_make_spec.py
-        model_dir  += 'aumicb_{}Solar_{}_R1M/'.format(solar,sp)
-        if order_by_order:
-            model_dir += 'order_by_order/'
-    elif instrument=='spirou':
-        model_dir = 'Models/{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
+
 
 
     # results file
@@ -117,7 +119,7 @@ if __name__ == "__main__":
 
     ### Velocimetric semi-amplitude
     Kpmin      = 0.0 #Jupiter
-    Kpmax      = 250.0#Jupiter
+    Kpmax      = 180.0#Jupiter
     Nkp        = 100 ### Size of the grid
     Kp         = np.linspace(Kpmin,Kpmax,Nkp)
 
@@ -228,7 +230,7 @@ if __name__ == "__main__":
 
     #### Compute statistics and plot the map
     # Indicate regions to exclude when computing the NOISE level from the correlation map
-    Kp_lim      = [120.0,220.0]   # Exclude this Kp range we
+    Kp_lim      = [70.0,150.0]   # Exclude this Kp range we
     Vsys_lim    = [-15.,15.]
     snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr,Kp_lim,Vsys_lim)
     sig_fin     = np.sum(np.sum(corr[:,:,ind_sel,:],axis=3),axis=2)/snrmap_fin
@@ -236,8 +238,8 @@ if __name__ == "__main__":
 
 
     ### Plot correlation + 1D cut
-    K_cut   = 83. # expected 83 km/s
-    V_cut   = 0.0
+    K_cut   = 120. # expected 83 km/s
+    V_cut   = 5.0
     ind_v   = np.argmin(np.abs(Vsys-V_cut))
     ind_k   = np.argmin(np.abs(Kp-K_cut))
     sn_map  = sig_fin

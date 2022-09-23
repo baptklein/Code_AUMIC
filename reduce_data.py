@@ -58,8 +58,8 @@ orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 ### Injection parameters - optionally inject a planet model
 inject   = True
 inj_amp  = 10.
-inj_Kp   = 180. #km/s
-inj_vsys = 10.  #km/s
+inj_Kp   = 120. #km/s
+inj_vsys = 5.  #km/s
 
 
 ### Data reduction parameters
@@ -90,23 +90,10 @@ auto_tune   = True                             ### Automatic tuning of number of
 fac       = 2.0 # factor of std at which to mask
 
 if inject:
-    outroot += 'inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}/'.format(inj_amp,inj_Kp,inj_vsys)
-if align:
-    outroot += 'aligned/'
-if det_airmass:
-    outroot += 'airmass/'
-if mode_pca == "pca" or mode_pca == "PCA":
-    outroot += "PCA/"
-nam_fin  = outroot+"reduced_1.pkl"
-nam_info = outroot+"info_1.dat"
-os.makedirs(outroot,exist_ok=True)
-os.makedirs(outroot+'masked/',exist_ok=True)
-
-
-if inject:
+    outroot += 'inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}'.format(inj_amp,inj_Kp,inj_vsys)
     # load model
     # model files
-    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CH4','CO','CO2','H2O','NH3'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -124,6 +111,18 @@ if inject:
     W_mod    = np.array(W_mod)
     T_depth  = np.array(T_depth)
     mod_func = interpolate.interp1d(W_mod,T_depth)
+    outroot += '_{}/'.format(sp)
+if align:
+    outroot += 'aligned/'
+if det_airmass:
+    outroot += 'airmass/'
+if mode_pca == "pca" or mode_pca == "PCA":
+    outroot += "PCA/"
+nam_fin  = outroot+"reduced_1.pkl"
+nam_info = outroot+"info_1.dat"
+os.makedirs(outroot,exist_ok=True)
+os.makedirs(outroot+'masked/',exist_ok=True)
+
 
 ind_rem     = []
 V_corr      = vstar - berv                  ### Geo-to-bary correction
