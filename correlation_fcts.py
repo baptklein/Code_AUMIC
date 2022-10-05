@@ -20,6 +20,7 @@ from scipy.optimize import minimize
 from functions import *
 from scipy.stats import pearsonr
 import astropy.constants as aC
+from tqdm import tdqm
 
 def simple_correlation(list_ord,window,phase,Kp,Vtot,plot=False,savedir=None):
     """
@@ -188,7 +189,7 @@ def compute_correlation(list_ord,window,phase,Kp,Vsys,V_shift):
     #And now the correlation, following boucher et al. 2021
     print("Compute correlation for",nord_tmp,"orders")
     nbor = 50 # remove edge pixels
-    for ii in range(len(Kp)):
+    for ii in tqdm(range(len(Kp))):
         for jj in range(len(Vsys)):
             vp             = Kp[ii]*np.sin(2.0*np.pi*phase2)+Vsys[jj] + Vshift2
             for no in range(len(list_ord)):

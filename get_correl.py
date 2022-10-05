@@ -96,19 +96,21 @@ if __name__ == "__main__":
     # results file
     save_dir      = 'xcorr_result/'+'{}/'.format(instrument)+'{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
     simple        = False # turn on (true)/off simple pearsonr cross-correlation
+    if args.inject:
+        save_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}_{}/".format(args.inj_amp,\
+        args.inj_Kp,args.inj_vsys,sp)
+    if args.airmass:
+        save_dir += 'airmass/'
+    if args.red_mode=='pca' or args.red_mode=='PCA':
+        save_dir+= 'PCA/'
     if simple:
         save_dir += 'pearsonr/'
-        nam_res   = save_dir+'corr_velocity_{}_{}{}'.format(sp,al,mk)
+        nam_res   = save_dir+'corr_velocity_{}_{}{}.pkl'.format(sp,al,mk)
     else:
         save_dir += 'boucher/'
-        nam_res   = save_dir+'corr_Kp_vsys_{}_{}{}'.format(sp,al,mk)
-        nam_fig   = save_dir+'Kp_vsys_map_ALLorders_{}_{}{}'.format(sp,al,mk)
+        nam_res   = save_dir+'corr_Kp_vsys_{}_{}{}.pkl'.format(sp,al,mk)
+        nam_fig   = save_dir+'Kp_vsys_map_ALLorders_{}_{}{}.png'.format(sp,al,mk)
 
-    if args.inject:
-        nam_res  += '_inj-amp{}_Kp{}_vsys{}'.format(args.inj_amp,args.inj_Kp,args.inj_vsys)
-        nam_fig  += '_inj-amp{}_Kp{}_vsys{}'.format(args.inj_amp,args.inj_Kp,args.inj_vsys)
-    nam_res      += '.pkl'
-    nam_fig      += '.png'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
