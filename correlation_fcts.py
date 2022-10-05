@@ -20,7 +20,7 @@ from scipy.optimize import minimize
 from functions import *
 from scipy.stats import pearsonr
 import astropy.constants as aC
-from tqdm import tdqm
+from tqdm import tqdm
 
 def simple_correlation(list_ord,window,phase,Kp,Vtot,plot=False,savedir=None):
     """
@@ -422,7 +422,7 @@ def plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_inj=0.0,K_inj=0.0,cmap="gist_h
 
     ### Simple color maps
     if len(sn_cutx) == 0:
-        fig, ax = plt.subplots(figsize=(10,7))
+        fig, ax = plt.subplots(figsize=(9,7))
         plt.contourf(Vsys,Kp,sn_map,levels=levels,cmap=cmap)
         plt.ylabel(r"K$_{\rm{p}}$ [km/s]")
         plt.xlabel(r"V$_{\rm{sys}}$ [km/s]")
