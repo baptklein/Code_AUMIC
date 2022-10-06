@@ -47,6 +47,7 @@ outroot = "Input_data/igrins/"
 os.makedirs(outroot,exist_ok=True)
 name_fin = outroot+"data_igrins.pkl"
 wlen_fin = outroot+'wlens_igrins.pkl'
+humidity_fin = outroot+'humidity_igrins.pkl'
 
 
 time_JD, wlens, data_RAW, data_var, data_sn, airms, humidity = read_igrins_data(dir_data)
@@ -183,4 +184,7 @@ with open(name_fin, 'wb') as specfile:
 # save wlens in a separate file
 with open(wlen_fin, 'wb') as wlenfile:
     pickle.dump(W_corr,wlenfile)
+# save humidity in a separate file
+with open(humidity_fin, 'wb') as humfile:
+    pickle.dump(humidity,humfile)
 print("\nFINISHED.")
