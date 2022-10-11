@@ -120,15 +120,15 @@ if __name__ == "__main__":
     Rs         = 261413.0   # Stellar radius [km]
 
     ### Velocimetric semi-amplitude
-    Kpmin      = 0.0 #Jupiter
+    Kpmin      = 20.0 #Jupiter
     Kpmax      = 180.0#Jupiter
     Nkp        = 100 ### Size of the grid
     Kp         = np.linspace(Kpmin,Kpmax,Nkp)
 
     ### Mid-transit planet RV [km/s]
-    Vmin       = -40.0
-    Vmax       =  40.0
-    Nv         = 81
+    Vmin       = -30.0
+    Vmax       =  30.0
+    Nv         = 61
     Vsys       = np.linspace(Vmin,Vmax,Nv)
 
 
@@ -198,6 +198,8 @@ if __name__ == "__main__":
                 T_depth.append(float(v[1].split('\n')[0]))
             W_mod = np.array(W_mod)/1e3
             T_depth = np.array(T_depth)
+        if args.inject:
+            T_depth = (1 + args.inj_amp*(T_depth-1))
         for kk,O in enumerate(list_ord):
             Wmin,Wmax = 0.95*O.W_fin.min(),1.05*O.W_fin.max()
             indm      = np.where((W_mod>Wmin)&(W_mod<Wmax))[0]

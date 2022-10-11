@@ -57,9 +57,9 @@ orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 
 ### Injection parameters - optionally inject a planet model
 inject   = True
-inj_amp  = 10.
+inj_amp  = 20.
 inj_Kp   = 120. #km/s
-inj_vsys = 5.  #km/s
+inj_vsys = 10.  #km/s
 
 
 ### Data reduction parameters
@@ -147,7 +147,7 @@ for nn in range(nord):
         wlens_planet = O.W_raw[None,:] * shift_fac[:,None]
         model_prep   = mod_func(wlens_planet)
         flux         = np.array(Ir[nn],dtype=float)
-        flux[n_ini:n_end,:] *= (1 + inj_amp*model_prep)
+        flux[n_ini:n_end,:] *= (1 + inj_amp*(model_prep-1))
         O.I_raw      = flux
     else:
         O.I_raw  = np.array(Ir[nn],dtype=float)
