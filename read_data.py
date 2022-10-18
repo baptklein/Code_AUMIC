@@ -142,7 +142,8 @@ vbary = -barycorr.to(u.km/u.s).value
 ### Compute Planet-induced RV
 Vp           = get_rvs(time_JD,Ks,P,t0)
 Vc           = V0 + Vp - vbary   #Geocentric-to-barycentric correction
-
+# V0 is the stellar systemic velocity
+# Vp is the RV of the star due to the planet
 
 
 ### Plot transit information
