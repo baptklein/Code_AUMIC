@@ -120,8 +120,8 @@ if __name__ == "__main__":
     Rs         = 261413.0   # Stellar radius [km]
 
     ### Velocimetric semi-amplitude
-    Kpmin      = 20.0 #Jupiter
-    Kpmax      = 180.0#Jupiter
+    Kpmin      = 0.0 #Jupiter
+    Kpmax      = 150.0#Jupiter
     Nkp        = 100 ### Size of the grid
     Kp         = np.linspace(Kpmin,Kpmax,Nkp)
 
@@ -148,6 +148,7 @@ if __name__ == "__main__":
     ### Select orders for the correlation
     ord_sel    = orders
     V_shift    = vstar - berv # think this has shape (nep), velocity to shift into stellar rest frame
+    if args.inject: V_shift    -= -4.71 # hack for the cross-correlation bc otherwise true vsys is added
 
 
     print(nord,"orders detected")
@@ -234,7 +235,7 @@ if __name__ == "__main__":
 
     #### Compute statistics and plot the map
     # Indicate regions to exclude when computing the NOISE level from the correlation map
-    Kp_lim      = [70.0,150.0]   # Exclude this Kp range we
+    Kp_lim      = [100.0,140.0]   # Exclude this Kp range we
     Vsys_lim    = [-15.,15.]
     snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr,Kp_lim,Vsys_lim)
     sig_fin     = np.sum(np.sum(corr[:,:,ind_sel,:],axis=3),axis=2)/snrmap_fin
@@ -242,8 +243,8 @@ if __name__ == "__main__":
 
 
     ### Plot correlation + 1D cut
-    K_cut   = 120. # expected 83 km/s
-    V_cut   = 5.0
+    K_cut   = 83. # expected 83 km/s
+    V_cut   = 0.0
     ind_v   = np.argmin(np.abs(Vsys-V_cut))
     ind_k   = np.argmin(np.abs(Kp-K_cut))
     sn_map  = sig_fin
@@ -264,7 +265,8 @@ if __name__ == "__main__":
         V_cut = round(args.inj_vsys,1)
         K_cut = round(args.inj_Kp,1)
     else:
-        V_cut = round(V_best,1)
-        K_cut = round(K_best,1)
+        print(V_cut)
+        #V_cut = round(V_best,1)
+        #K_cut = round(K_best,1)
     plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True)
     #plot_correlation_map(Vsys,Kp,sn_map,nam_fig,K_cut,V_cut,cmap,sn_cutx,sn_cuty,20)
