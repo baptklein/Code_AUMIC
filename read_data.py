@@ -36,7 +36,7 @@ ld_coef  = [1.2783,-1.5039,1.2042,-0.3833] # Claret et al. 2011
 
 ### Stellar radial velocity info
 Ks        = 0.006    #RV semi-amplitude of the star orbital motion due to planet [km/s]
-V0        = -4.71    #Stellar systemic velocity [km/s]
+V0        = -4.71    #Stellar systemic velocity [km/s] (SIMBAD)
 
 
 
@@ -141,7 +141,7 @@ vbary = -barycorr.to(u.km/u.s).value
 
 ### Compute Planet-induced RV
 Vp           = get_rvs(time_JD,Ks,P,t0)
-Vc           = V0 + Vp - vbary   #Geocentric-to-barycentric correction
+Vc           = V0 + Vp - vbary   #Geocentric-to-stellar rest frame correction
 # V0 is the stellar systemic velocity
 # Vp is the RV of the star due to the planet
 

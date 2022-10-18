@@ -122,6 +122,7 @@ def compute_correlation(list_ord,window,phase,Kp,Vsys,V_shift):
                     - phase:    Orbital phase for the planet
                     - Kp:       Grid of Kp values (1D vector)   --> semi-amplutde of planet RV signal
                     - Vsys:     Grid of Vsys values (1D vector) --> RV of the planet at mid-transit
+                    - V_shift:  Velocity correction from geocentric to stellar rest frame
 
     --> Outputs:    - correl:   Map of correlation coefficients between the observed and synthetic
                                 spectra (2D matrix with N_Kp, N_Vsys - one for each order)

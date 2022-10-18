@@ -57,7 +57,7 @@ orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 
 ### Injection parameters - optionally inject a planet model
 inject   = True
-inj_amp  = 20.
+inj_amp  = 5.
 inj_Kp   = 120. #km/s
 inj_vsys = 10.  #km/s
 
@@ -125,7 +125,7 @@ os.makedirs(outroot+'masked/',exist_ok=True)
 
 
 ind_rem     = []
-V_corr      = vstar - berv                  ### Geo-to-bary correction
+V_corr      = vstar - berv                  ### Geocentric-to-stellar rest frame correction
 n_ini,n_end = get_transit_dates(window)     ### Get transits start and end indices
 
 
