@@ -41,6 +41,13 @@ if __name__ == "__main__":
         help="systemic velocity (km/s) at which to inject planet signal")
     parser.add_argument("--inj-amp", type=float, default=0.0, \
         help="scale factor of injected planet signal")
+    parser.add_argument("--select-orders", action="store_true", default=False,\
+        help="select only certain orders, otherwise use all, follow with orders argument")
+    parser.add_argument("--orders", nargs='+', default=[], type=int, \
+        help="name specific orders, options 32--79, just enter as integers with space between")
+    parser.add_argument("--oot", action="store_true", default=False,\
+        help="this option will reverse the transit window, and so cross-correlate with out of \
+        transit frames only")
 
 
     args = parser.parse_args()
@@ -54,7 +61,7 @@ if __name__ == "__main__":
         instrument = 'spirou'
 
     # model files
-    species     = ['CH4','CO','CO2','H2O','NH3'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -71,8 +78,10 @@ if __name__ == "__main__":
 
     if args.inject:
         print("loading in spectra with injected signal...")
-        data_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}_{}/".format(args.inj_amp,\
+        data_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}_{}/".format(args.inj_amp,\
         args.inj_Kp,args.inj_vsys,sp)
+    else:
+        data_dir += "true_data/"
     if args.airmass:
         data_dir += 'airmass/'
     if args.red_mode=='pca' or args.red_mode=='PCA':
@@ -89,7 +98,12 @@ if __name__ == "__main__":
         mk       = "_masked"
     else:
         mk       = ""
-
+    if args.oot:
+        oot      = True
+        OOT      = "_oot"
+    else:
+        oot      = False
+        OOT      = ""
 
 
 
@@ -97,20 +111,33 @@ if __name__ == "__main__":
     save_dir      = 'xcorr_result/'+'{}/'.format(instrument)+'{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
     simple        = False # turn on (true)/off simple pearsonr cross-correlation
     if args.inject:
-        save_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}_{}/".format(args.inj_amp,\
+        save_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}_{}/".format(args.inj_amp,\
         args.inj_Kp,args.inj_vsys,sp)
+    else:
+        save_dir += "true_data/"
     if args.airmass:
         save_dir += 'airmass/'
     if args.red_mode=='pca' or args.red_mode=='PCA':
         save_dir+= 'PCA/'
     if simple:
         save_dir += 'pearsonr/'
-        nam_res   = save_dir+'corr_velocity_{}_{}{}.pkl'.format(sp,al,mk)
     else:
         save_dir += 'boucher/'
-        nam_res   = save_dir+'corr_Kp_vsys_{}_{}{}.pkl'.format(sp,al,mk)
-        nam_fig   = save_dir+'Kp_vsys_map_ALLorders_{}_{}{}.png'.format(sp,al,mk)
 
+    #print(args.orders)
+    if args.select_orders:
+        if len(args.orders)>0:
+            print('selecting orders')
+            select_orders = args.orders
+            _orders = '_'.join(str(i) for i in select_orders)
+            save_dir += 'orders_{}/'.format(_orders)
+            nam_res   = save_dir+'corr_Kp_vsys_{}{}{}{}.pkl'.format(sp,al,mk,OOT)
+            nam_fig   = save_dir+'Kp_vsys_map_{}{}{}{}.png'.format(sp,al,mk,OOT)
+        else:
+            sys.exit('specify orders to select if using select-orders argument')
+    else:
+        nam_res   = save_dir+'corr_Kp_vsys_{}{}{}{}.pkl'.format(sp,al,mk,OOT)
+        nam_fig   = save_dir+'Kp_vsys_map_ALLorders_{}{}{}{}.png'.format(sp,al,mk,OOT)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -122,7 +149,7 @@ if __name__ == "__main__":
     ### Velocimetric semi-amplitude
     Kpmin      = 0.0 #Jupiter
     Kpmax      = 150.0#Jupiter
-    Nkp        = 100 ### Size of the grid
+    Nkp        = 151 ### Size of the grid
     Kp         = np.linspace(Kpmin,Kpmax,Nkp)
 
     ### Mid-transit planet RV [km/s]
@@ -143,10 +170,22 @@ if __name__ == "__main__":
             orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask = pickle.load(specfile)
         else:
             orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN = pickle.load(specfile)
+    if oot:
+        # reverse window, to only cross-correlate with out-of-transit frames
+        # but no weightings for ingress/egress
+        # only use purely out-of-transit
+        window_new      = np.zeros_like(window)
+        ind             = np.where(window==0.0)[0]
+        window_new[ind] = 1.
+        window          = window_new # overwrite
+
     nord     = len(orders)
 
     ### Select orders for the correlation
-    ord_sel    = orders
+    if args.select_orders:
+        ord_sel = select_orders
+    else:
+        ord_sel = orders
     V_shift    = vstar - berv # think this has shape (nep), velocity to shift into stellar rest frame
     if args.inject: V_shift    -= -4.71 # hack for the cross-correlation bc otherwise true vsys is added
 
@@ -175,7 +214,6 @@ if __name__ == "__main__":
     ind_sel = []
     for kk,oo in enumerate(list_ord):
         if oo.number in ord_sel: ind_sel.append(kk)
-
     # Use the below for a single global model
     #W_mod,I_mod    = np.loadtxt(name_wav),np.loadtxt(name_model)
     #T_depth        = np.copy(I_mod)
@@ -235,10 +273,10 @@ if __name__ == "__main__":
 
     #### Compute statistics and plot the map
     # Indicate regions to exclude when computing the NOISE level from the correlation map
-    Kp_lim      = [100.0,140.0]   # Exclude this Kp range we
+    Kp_lim      = [50.0,100.0]   # Exclude this Kp range we
     Vsys_lim    = [-15.,15.]
     snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr,Kp_lim,Vsys_lim)
-    sig_fin     = np.sum(np.sum(corr[:,:,ind_sel,:],axis=3),axis=2)/snrmap_fin
+    sig_fin     = np.sum(np.sum(corr,axis=3),axis=2)/snrmap_fin
 
 
 
@@ -259,14 +297,14 @@ if __name__ == "__main__":
     print("DONE")
 
     ### Get and display statistics
-    p_best,K_best,K_sup,K_inf,V_best,V_sup,V_inf = get_statistics(Vsys,Kp,sig_fin)
+    #p_best,K_best,K_sup,K_inf,V_best,V_sup,V_inf = get_statistics(Vsys,Kp,sig_fin)
 
     if args.inject:
-        V_cut = round(args.inj_vsys,1)
-        K_cut = round(args.inj_Kp,1)
+        V_cut = round(args.inj_vsys,2)
+        K_cut = round(args.inj_Kp,2)
     else:
         print(V_cut)
         #V_cut = round(V_best,1)
         #K_cut = round(K_best,1)
-    plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True)
+    plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True,box=False)
     #plot_correlation_map(Vsys,Kp,sn_map,nam_fig,K_cut,V_cut,cmap,sn_cutx,sn_cuty,20)
