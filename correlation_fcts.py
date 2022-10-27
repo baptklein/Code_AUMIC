@@ -21,6 +21,7 @@ from functions import *
 from scipy.stats import pearsonr
 import astropy.constants as aC
 from tqdm import tqdm
+import matplotlib.patheffects as pe
 
 def simple_correlation(list_ord,window,phase,Kp,Vtot,plot=False,savedir=None):
     """
@@ -419,7 +420,7 @@ def get_statistics(x,y,C):
 # - Either simple color map (if sn_cutx = [])
 # - Either color map + 1D cuts at best Kp and Vsys
 # -----------------------------------------------------------
-def plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_inj=0.0,K_inj=0.0,cmap="gist_heat",sn_cutx=[],sn_cuty=[],levels=10,pointer=False):
+def plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_inj=0.0,K_inj=0.0,cmap="gist_heat",sn_cutx=[],sn_cuty=[],levels=10,pointer=False,box=False,text=False,text_title=None):
 
     ### Simple color maps
     if len(sn_cutx) == 0:
@@ -435,13 +436,18 @@ def plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_inj=0.0,K_inj=0.0,cmap="gist_h
             plt.hlines(K_inj, V_inj+0.5*width, Vsys.max(),ls='--',lw=1.0,color='w')
             plt.vlines(V_inj, Kp.min(), K_inj-0.5*height,ls='--',lw=1.0,color='w')
             plt.vlines(V_inj, K_inj+0.5*height, Kp.max(),ls='--',lw=1.0,color='w')
-            rect = patches.Rectangle((V_inj-0.5*width,K_inj-0.5*height), width, height, lw=2, ec='w', zorder=2, fill=False)
-            ax.add_patch(rect) # Add the patch to the Axes
+            if box:
+                rect = patches.Rectangle((V_inj-0.5*width,K_inj-0.5*height), width, height, lw=2, ec='w', zorder=2, fill=False)
+                ax.add_patch(rect) # Add the patch to the Axes
         else:
             plt.axhline(K_inj,ls="--",lw=1.0,color="w")
             plt.axvline(V_inj,ls="--",lw=1.0,color="w")
         cb = plt.colorbar()
         cb.set_label(r"Significance [$\sigma$]",rotation=270,labelpad=40)
+        rKp = Kp.max()-Kp.min()
+        rVsys = Vsys.max()-Vsys.min()
+        if text and text_title is not None:
+            plt.text(Vsys.max()-0.3*rVsys,Kp.min()+0.2*rKp,text_title,color='k',weight='bold',path_effects=[pe.withStroke(linewidth=2,foreground='white')])
         plt.savefig(nam_fig,bbox_inches="tight")
         plt.close()
 

@@ -61,7 +61,7 @@ if __name__ == "__main__":
         instrument = 'spirou'
 
     # model files
-    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CH4'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -80,8 +80,10 @@ if __name__ == "__main__":
         print("loading in spectra with injected signal...")
         data_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}_{}/".format(args.inj_amp,\
         args.inj_Kp,args.inj_vsys,sp)
+        text = 'injection {}x'.format(int(args.inj_amp))
     else:
         data_dir += "true_data/"
+        text = 'true data'
     if args.airmass:
         data_dir += 'airmass/'
     if args.red_mode=='pca' or args.red_mode=='PCA':
@@ -306,5 +308,5 @@ if __name__ == "__main__":
         print(V_cut)
         #V_cut = round(V_best,1)
         #K_cut = round(K_best,1)
-    plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True,box=False)
+    plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True,box=False,text=True,text_title='{} {} \n$K_p$ = {:.2f} km/s \n$V_s$ = {:.2f} km/s'.format(sp,text,K_cut,V_cut))
     #plot_correlation_map(Vsys,Kp,sn_map,nam_fig,K_cut,V_cut,cmap,sn_cutx,sn_cuty,20)
