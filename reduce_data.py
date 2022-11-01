@@ -67,6 +67,7 @@ align    = False      # optionally align the spectra
 dep_min  = 0.5        # remove all data when telluric relative absorption < 1 - dep_min
 thres_up = 0.03       # Remove the line until reaching 1-thres_up
 Npt_lim  = 2000       # If the order contains less than Npt_lim points, it is discarded from the analysis
+doLS     = False      # perform stretch/shift of reference stellar out-of-transit mean spectrum to each observed spectrum (ATM only turned off for spirou)
 
 ### Interpolation parameters
 sig_g    = 1.0                         ### STD of one SPIRou px in km/s
@@ -301,19 +302,23 @@ for nn in range(nord):
             ### If the order is kept - Remove high-SNR(?) out-of-transit reference spectrum
             ### Start by computing mean spectrum in the stellar rest frame
             V_cl      = c0*(W_cl/O.W_mean-1.)
-            I_bary    = move_spec(V_cl,I_cl,V_corr,sig_g)  ## Shift to stellar rest frame
+            I_bary    = move_spec(V_cl,I_cl,V_corr,sig_g)  ## Shift to stellar rest frame, result from move_spec will now contain nans
             I_med     = np.median(np.concatenate((I_bary[:n_ini],I_bary[n_end:]),axis=0),axis=0) ## Compute median out-of-transit
             I_med_geo = move_spec(V_cl,np.array([I_med]),-1.*V_corr,sig_g)  ## Move back ref spectrum to Geocentric frame
-            I_sub1    = np.zeros(I_cl.shape)
+            I_sub1    = np.zeros(I_cl.shape) + np.nan
 
             for kk in range(len(I_cl)):
-                X          = np.array([np.ones(len(I_med_geo[kk])),I_med_geo[kk]],dtype=float).T
-                p,pe       = LS(X,I_cl[kk])
-                Ip         = np.dot(X,p)
-                I_sub1[kk] = I_cl[kk]/Ip
+                if doLS:
+                    l          = np.isfinite(I_med_geo[kk])
+                    X          = np.array([np.ones(len(I_med_geo[kk][l])),I_med_geo[kk][l]],dtype=float).T
+                    p,pe       = LS(X,I_cl[kk][l])
+                    Ip         = np.dot(X,p)
+                    I_sub1[kk][l] = I_cl[kk][l]/Ip #NANs from move_spec interpolation maintained
+                else:
+                    I_sub1[kk] = (I_cl[kk]/I_med_geo[kk]) # don't perform stretch/shift
 
             ### First compute reference spectrum in the Geocentric frame
-            I_med2  = np.median(np.concatenate((I_sub1[:n_ini],I_sub1[n_end:]),axis=0),axis=0)
+            I_med2  = np.nanmedian(np.concatenate((I_sub1[:n_ini],I_sub1[n_end:]),axis=0),axis=0)
             I_sub2  = np.zeros(I_sub1.shape)
 
             # for each epoch
@@ -326,6 +331,10 @@ for nn in range(nord):
             ### Remove extremities to avoid interpolation errors
             W_sub = W_cl[N_bor:-N_bor]
             I_sub = I_sub2[:,N_bor:-N_bor]
+            ### purge NaNs
+            l     = np.isfinite(I_sub)
+            W_sub = W_sub[l]
+            I_sub = I_sub[l]
 
         ### END of STEP 1
 

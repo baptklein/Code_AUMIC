@@ -286,6 +286,7 @@ def move_spec(V,I,Vc,sig_g):
     --> Inputs:     - V:     Velocity vector (assumed 1D)
                     - I:     Array of flux values (assumed 2D [N_obs,N_wav])
                     - Vc:    Velocimetry correction [km/s]
+                    - sig_g: Standard deviation of one pixel
                     - pixel: Binned instrument pixel in wavelength space
                     - kind:  type of interpolatation (scipy interp1D)
 
@@ -302,8 +303,8 @@ def move_spec(V,I,Vc,sig_g):
     for ii in range(len(Vc)):
 
         ### Depending on which frame we're moving into
-        if len(I) == len(Vc): fi = interp1d(V,I[ii],kind="cubic",fill_value="extrapolate")
-        else:                 fi = interp1d(V,I[0],kind="cubic",fill_value="extrapolate")
+        if len(I) == len(Vc): fi = interp1d(V,I[ii],kind="cubic",bounds_error=False)#fill_value="extrapolate")
+        else:                 fi = interp1d(V,I[0],kind="cubic",bounds_error=False)#fill_value="extrapolate")
 
         I_tmp     = step * (fi(V+Vc[ii]+dddv[0])*G[0]+fi(V+Vc[ii]+dddv[-1])*G[-1]) * 0.5
         for hh in range(1,len(dddv)-1):
