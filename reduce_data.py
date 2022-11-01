@@ -56,10 +56,10 @@ orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 
 
 ### Injection parameters - optionally inject a planet model
-inject   = False
+inject   = True
 inj_amp  = 1.
 inj_Kp   = 83. #km/s 83km/s true_data
-inj_vsys = -4.71  #km/s -4.71 km/s true_data
+inj_vsys = 10.  #km/s -4.71 km/s true_data
 
 
 ### Data reduction parameters
@@ -121,6 +121,8 @@ if det_airmass:
     outroot += 'airmass/'
 if mode_pca == "pca" or mode_pca == "PCA":
     outroot += "PCA/"
+if not doLS:
+    outroot += 'noLS/'
 nam_fin  = outroot+"reduced_1.pkl"
 nam_info = outroot+"info_1.dat"
 os.makedirs(outroot,exist_ok=True)
