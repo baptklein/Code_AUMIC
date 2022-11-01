@@ -21,7 +21,7 @@ from functions import *
 
 ############################# VERSION ADAPTED FOR IGRINS DATA
 outroot    = 'Input_data/'
-instrument = 'spirou'
+instrument = 'igrins'
 c0         = Constants().c0
 
 if instrument == 'IGRINS' or instrument == 'igrins':
@@ -56,10 +56,10 @@ orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 
 
 ### Injection parameters - optionally inject a planet model
-inject   = True
-inj_amp  = 5.
-inj_Kp   = 120. #km/s
-inj_vsys = 10.  #km/s
+inject   = False
+inj_amp  = 1.
+inj_Kp   = 83. #km/s 83km/s true_data
+inj_vsys = -4.71  #km/s -4.71 km/s true_data
 
 
 ### Data reduction parameters
@@ -90,10 +90,10 @@ auto_tune   = True                             ### Automatic tuning of number of
 fac       = 2.0 # factor of std at which to mask
 
 if inject:
-    outroot += 'inject_amp{:.1f}_Kp{:.1f}_vsys{:.1f}'.format(inj_amp,inj_Kp,inj_vsys)
+    outroot += 'inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}'.format(inj_amp,inj_Kp,inj_vsys)
     # load model
     # model files
-    species     = ['CH4','CO','CO2','H2O','NH3'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CH4'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -112,6 +112,8 @@ if inject:
     T_depth  = np.array(T_depth)
     mod_func = interpolate.interp1d(W_mod,T_depth)
     outroot += '_{}/'.format(sp)
+else:
+    outroot += 'true_data/'
 if align:
     outroot += 'aligned/'
 if det_airmass:
