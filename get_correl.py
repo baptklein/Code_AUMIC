@@ -48,6 +48,9 @@ if __name__ == "__main__":
     parser.add_argument("--oot", action="store_true", default=False,\
         help="this option will reverse the transit window, and so cross-correlate with out of \
         transit frames only")
+    parser.add_argument("--noLS", action="store_true", default=False,\
+        help="this option will turn off the LS shift/stretch of the out-of-transit ref spec \
+        in reduce_data.py")
 
 
     args = parser.parse_args()
@@ -61,7 +64,7 @@ if __name__ == "__main__":
         instrument = 'spirou'
 
     # model files
-    species     = ['CH4'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -87,7 +90,9 @@ if __name__ == "__main__":
     if args.airmass:
         data_dir += 'airmass/'
     if args.red_mode=='pca' or args.red_mode=='PCA':
-        data_dir+= 'PCA/'
+        data_dir += 'PCA/'
+    if args.noLS:
+        data_dir += 'noLS/'
 
     if args.aligned:
         filename = "reduced_aligned.pkl"
@@ -121,6 +126,8 @@ if __name__ == "__main__":
         save_dir += 'airmass/'
     if args.red_mode=='pca' or args.red_mode=='PCA':
         save_dir+= 'PCA/'
+    if args.noLS:
+        save_dir += 'noLS/'
     if simple:
         save_dir += 'pearsonr/'
     else:

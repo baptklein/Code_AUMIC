@@ -21,7 +21,7 @@ from functions import *
 
 ############################# VERSION ADAPTED FOR IGRINS DATA
 outroot    = 'Input_data/'
-instrument = 'igrins'
+instrument = 'spirou' # models do not extend far enough for igrins
 c0         = Constants().c0
 
 if instrument == 'IGRINS' or instrument == 'igrins':
@@ -59,7 +59,7 @@ orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 inject   = True
 inj_amp  = 1.
 inj_Kp   = 83. #km/s 83km/s true_data
-inj_vsys = 10.  #km/s -4.71 km/s true_data
+inj_vsys = -4.71  #km/s -4.71 km/s true_data
 
 
 ### Data reduction parameters
@@ -74,7 +74,7 @@ sig_g    = 1.0                         ### STD of one SPIRou px in km/s
 N_bor    = 15                           ### Nb of pts removed at each extremity (twice)
 
 ### Normalisation parameters
-N_med    = 50                          ### Nb of points used in the median filter for the inteprolation
+N_med    = 50                          ### Nb of points used in the median filter for the interpolation
 sig_out  = 5.0                          ### Threshold for outliers identification during normalisation process
 deg_px   = 2                            ### Degree of the polynomial fit to the distribution of pixel STDs
 
@@ -94,7 +94,7 @@ if inject:
     outroot += 'inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}'.format(inj_amp,inj_Kp,inj_vsys)
     # load model
     # model files
-    species     = ['CH4'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -109,7 +109,7 @@ if inject:
         v = line.split(' ')
         W_mod.append(float(v[0]))
         T_depth.append(float(v[1].split('\n')[0]))
-    W_mod    = np.array(W_mod)
+    W_mod    = np.array(W_mod)#/1e3 # convert to um
     T_depth  = np.array(T_depth)
     mod_func = interpolate.interp1d(W_mod,T_depth)
     outroot += '_{}/'.format(sp)
@@ -160,6 +160,7 @@ for nn in range(nord):
     #O.I_atm  = np.array(Ia[nn],dtype=float)
     O.SNR    = np.array(SN[nn],dtype=float)
     O.W_mean = O.W_raw.mean()
+    print(O.W_mean)
     list_ord.append(O)
 print("DONE\n")
 
@@ -175,10 +176,10 @@ if not plot_all_orders:
     plot_ord = 10 # pick an example order to plot
 for nn in range(nord):
     if plot_all_orders:
-        plot=True
+        plot=False
     else:
         if nn==plot_ord:
-            plot=True
+            plot=False
         else:
             plot=False
     O         = list_ord[nn]
@@ -271,7 +272,7 @@ for nn in range(nord):
 
         ### STEP 1 -- remove master out-of-transits
         # First in Earth frame, then stellar for IGRINS (opposite for SPIRou)
-        if instrument == 'IGRINS' or 'igrins':
+        if instrument == 'IGRINS' or instrument == 'igrins':
             ### First compute reference spectrum in the Geocentric frame
             I_med2  = np.median(np.concatenate((I_cl[:n_ini],I_cl[n_end:]),axis=0),axis=0)
             I_sub2  = np.zeros(I_cl.shape)
@@ -300,13 +301,13 @@ for nn in range(nord):
             W_sub = W_cl[N_bor:-N_bor]
             I_sub = I_sub1[:,N_bor:-N_bor]
 
-        elif instrument =='SPIROU' or 'spirou':
+        elif instrument =='SPIROU' or instrument=='spirou':
             ### If the order is kept - Remove high-SNR(?) out-of-transit reference spectrum
             ### Start by computing mean spectrum in the stellar rest frame
             V_cl      = c0*(W_cl/O.W_mean-1.)
             I_bary    = move_spec(V_cl,I_cl,V_corr,sig_g)  ## Shift to stellar rest frame, result from move_spec will now contain nans
             I_med     = np.median(np.concatenate((I_bary[:n_ini],I_bary[n_end:]),axis=0),axis=0) ## Compute median out-of-transit
-            I_med_geo = move_spec(V_cl,np.array([I_med]),-1.*V_corr,sig_g)  ## Move back ref spectrum to Geocentric frame
+            I_med_geo = move_spec(V_cl,np.array([I_med]),-1.*V_corr,sig_g,fv=np.nan)  ## Move back ref spectrum to Geocentric frame
             I_sub1    = np.zeros(I_cl.shape) + np.nan
 
             for kk in range(len(I_cl)):
@@ -321,22 +322,29 @@ for nn in range(nord):
 
             ### First compute reference spectrum in the Geocentric frame
             I_med2  = np.nanmedian(np.concatenate((I_sub1[:n_ini],I_sub1[n_end:]),axis=0),axis=0)
-            I_sub2  = np.zeros(I_sub1.shape)
+            I_sub2  = np.zeros(I_sub1.shape) + np.nan
 
             # for each epoch
+            #for kk in range(len(I_cl)):
+            #    l = np.isfinite(I_med2)
+            #    X          = np.array([np.ones(len(I_med2[l])),I_med2[l]],dtype=float).T
+            #    p,pe       = LS(X,I_sub1[kk][l]) #option not working for doLS =False
+            #    Ip         = np.dot(X,p)
+            #    I_sub2[kk][l] = I_sub1[kk][l]/Ip#I_med2
             for kk in range(len(I_cl)):
-                X          = np.array([np.ones(len(I_med2)),I_med2],dtype=float).T
-                p,pe       = LS(X,I_sub1[kk])
-                Ip         = np.dot(X,p)
-                I_sub2[kk] = I_sub1[kk]/Ip#I_med2
+                I_sub2[kk] = I_sub1[kk]/I_med2
 
             ### Remove extremities to avoid interpolation errors
             W_sub = W_cl[N_bor:-N_bor]
             I_sub = I_sub2[:,N_bor:-N_bor]
-            ### purge NaNs
-            l     = np.isfinite(I_sub)
-            W_sub = W_sub[l]
-            I_sub = I_sub[l]
+
+        ### purge NaNs
+        l = np.ones_like(W_sub,'bool')
+        for ipix in range(len(I_sub[0])):
+            if np.isnan(I_sub[:,ipix]).any():
+                l[ipix] = False
+        W_sub = W_sub[l]
+        I_sub = I_sub[:,l]
 
         ### END of STEP 1
 

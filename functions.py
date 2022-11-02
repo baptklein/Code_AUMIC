@@ -281,7 +281,7 @@ def get_transit_dates(wind):
 # -----------------------------------------------------------
 # Move spectra from one frame to another
 # -----------------------------------------------------------
-def move_spec(V,I,Vc,sig_g):
+def move_spec(V,I,Vc,sig_g,be=False,fv='extrapolate'):
     """
     --> Inputs:     - V:     Velocity vector (assumed 1D)
                     - I:     Array of flux values (assumed 2D [N_obs,N_wav])
@@ -303,8 +303,8 @@ def move_spec(V,I,Vc,sig_g):
     for ii in range(len(Vc)):
 
         ### Depending on which frame we're moving into
-        if len(I) == len(Vc): fi = interp1d(V,I[ii],kind="cubic",bounds_error=False)#fill_value="extrapolate")
-        else:                 fi = interp1d(V,I[0],kind="cubic",bounds_error=False)#fill_value="extrapolate")
+        if len(I) == len(Vc): fi = interp1d(V,I[ii],kind="cubic",bounds_error=be,fill_value=fv)#fill_value="extrapolate")
+        else:                 fi = interp1d(V,I[0],kind="cubic",bounds_error=be,fill_value=fv)#fill_value="extrapolate")
 
         I_tmp     = step * (fi(V+Vc[ii]+dddv[0])*G[0]+fi(V+Vc[ii]+dddv[-1])*G[-1]) * 0.5
         for hh in range(1,len(dddv)-1):
@@ -783,7 +783,7 @@ class Order:
 
             Im   = median_filter(I,N_med)
             In   = I/Im
-            filt = sigma_clip(In,sigma=sig_out,maxiters=5)
+            filt = sigma_clip(In,sigma=sig_out,maxiters=5,masked=True)
             ind2 = np.where(filt.mask)[0]
             ind_fin.append(ind2)
 
