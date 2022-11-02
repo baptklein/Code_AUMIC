@@ -17,6 +17,7 @@ import astropy.units as u
 from astropy.io import fits
 from functions import *
 import glob
+from pathlib import Path
 
 dir_data = "Data/IGRINS/"   #Sep18 #Jun19
 
@@ -52,6 +53,22 @@ humidity_fin = outroot+'humidity_igrins.pkl'
 
 time_JD, wlens, data_RAW, data_var, data_sn, airms, humidity = read_igrins_data(dir_data)
 
+# check if orders_igrins.dat file exists, if not create it
+orders_file = 'orders_igrins.dat'
+if not Path(orders_file).is_file():
+    igrins_min = []
+    igrins_max = []
+    wlens_mean = []
+    for i in range(len(wlens)):
+        igrins_min.append(wlens[i].min())
+        igrins_max.append(wlens[i].max())
+        wlens_mean.append(wlens[i].mean())
+    igrins_min = np.array(igrins_min)
+    igrins_max = np.array(igrins_max)
+    wlens_mean = np.array(wlens_mean)
+    ords       = np.arange(len(wlens))
+    DataOut    = np.column_stack((ords,wlens_mean,igrins_min,igrins_max))
+    np.savetxt(orders_file,DataOut,fmt=('%i','%.14f','%.14f','%.14f'),header='IGRINS orders min and max wavelengths')
 
 plt.plot(time_JD,"+")
 plt.title('JD')
