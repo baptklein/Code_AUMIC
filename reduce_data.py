@@ -57,7 +57,7 @@ orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 
 ### Injection parameters - optionally inject a planet model
 inject   = True
-inj_amp  = 1.
+inj_amp  = 10.
 inj_Kp   = 83. #km/s 83km/s true_data
 inj_vsys = -4.71  #km/s -4.71 km/s true_data
 
