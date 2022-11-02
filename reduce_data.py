@@ -86,6 +86,7 @@ deg_airmass = 2
 mode_pca    = "pca"                     ### "pca"/"PCA" or "autoencoder"
 npca        = np.array(2*np.ones(len(orders)),dtype=int)      ### Nb of removed components
 auto_tune   = True                             ### Automatic tuning of number of components based on white noise maps amplified by blaze
+thr_pca     = 1.0                   ### PCA comp removed if eigenvalue larger than thr_pca*max(eigenvalue_noise)
 
 ### Parameters for masking
 fac       = 2.0 # factor of std at which to mask
@@ -324,13 +325,7 @@ for nn in range(nord):
             I_med2  = np.nanmedian(np.concatenate((I_sub1[:n_ini],I_sub1[n_end:]),axis=0),axis=0)
             I_sub2  = np.zeros(I_sub1.shape) + np.nan
 
-            # for each epoch
-            #for kk in range(len(I_cl)):
-            #    l = np.isfinite(I_med2)
-            #    X          = np.array([np.ones(len(I_med2[l])),I_med2[l]],dtype=float).T
-            #    p,pe       = LS(X,I_sub1[kk][l]) #option not working for doLS =False
-            #    Ip         = np.dot(X,p)
-            #    I_sub2[kk][l] = I_sub1[kk][l]/Ip#I_med2
+
             for kk in range(len(I_cl)):
                 I_sub2[kk] = I_sub1[kk]/I_med2
 
@@ -360,42 +355,61 @@ for nn in range(nord):
 
 
         ### STEP 3 -- DETREND WITH AIRMASS -- OPTIONAL
+        ind_flag = []
+        for uu in range(len(I_norm2)):      
+            iiii = np.where(I_norm2[uu]<0.05)[0]
+            ind_flag.append(iiii)
+        ind_flag = np.sort(np.unique(np.concatenate(ind_flag)))
+        I_norm2  = np.delete(I_norm2,ind_flag,axis=1)
+        W_norm2  = np.delete(W_norm2,ind_flag)
+
         if det_airmass:
             I_log           = np.log(I_norm2)
-            I_det_log       = O.detrend_airmass(W_norm2,I_norm2,airmass,deg_airmass)
-            I_det           = np.exp(I_det_log)
-            O.I_fin         = I_det
+            Il              = O.detrend_airmass(W_norm2,I_log,airmass,deg_airmass)
+            O.I_fin         = np.exp(Il)
         else:
             O.I_fin         = I_norm2
-
-
-
-        O.W_fin  = np.copy(W_norm2)
-
-
+            Il              = np.log(I_norm2)
+        O.W_fin  = W_norm2          
+        
+        ### Removing the NaNs in Il
+        ind   = []
+        for uu in range(len(Il)):
+            i = np.where(np.isfinite(Il[uu])==True)[0]
+            ind.append(i)
+        r       = np.array(list(set.intersection(*map(set,ind))),dtype=int)
+        r       = np.sort(np.unique(r))
+        Il      = Il[:,r]
+        O.W_fin = O.W_fin[r]
+        O.I_fin = O.I_fin[:,r]
+        ff      = Il
+        if len(O.W_fin)-len(r) > 0: print(len(O.W_fin)-len(r),"points rejected")        
+        
+                          
 
         ### STEP 4 -- REMOVING CORRELATED NOISE -- PCA/AUTOENCODERS
         Il    = np.log(O.I_fin)
-        im    = np.nanmean(Il)
-        ist   = np.nanstd(Il)
-        ff    = (Il - im)/ist
+        #im    = np.nanmean(Il)
+        #ist   = np.nanstd(Il)
+        ff    = np.copy(Il)
 
 
-        XX    = np.where(np.isnan(O.I_fin[0]))[0]
         if len(XX) > 0:
             print("ORDER",O.number,"intractable: DISCARDED\n")
             ind_rem.append(nn)
         else:
             if mode_pca == "pca" or mode_pca == "PCA":
 
-                if auto_tune: n_com = O.tune_pca(Nmap=5)
+                if auto_tune: n_com = O.tune_pca(Nmap=5,thr_pca)
                 else: n_com = npca[nn]
+                
+                
                 pca   = PCA(n_components=n_com)
                 x_pca = np.float32(ff)
                 pca.fit(x_pca)
                 principalComponents = pca.transform(x_pca)
                 x_pca_projected = pca.inverse_transform(principalComponents)
-                O.I_pca = np.exp((ff-x_pca_projected)*ist+im)
+                O.I_pca = np.exp(ff-x_pca_projected) - 1.0
                 NCF[nn] = n_com
 
                 print(n_com,"PCA components discarded")
