@@ -821,9 +821,8 @@ class Order:
                         - pb: vector of best-fitting spectra
                         - I_pred: Best-fitting modelled sequence of spectra
         """
-
-        ### Switch to log space
         indw    = np.argmin(np.abs(W-self.W_mean))
+        print(np.std(I[:,indw-200:indw+200],axis=1))
         COV_inv = np.diag(1./np.std(I[:,indw-200:indw+200],axis=1)**(2)) ## Assumes that normalized spectra dominated by white noise
         X       = np.ones((len(I),deg+1))
         for ii in range(deg): X[:,ii+1] = airmass**(ii+1)
@@ -872,58 +871,49 @@ class Order:
 
 
     def tune_pca(self,Nmap=5,thr=1.0):
-
         """
         --> Inputs:     - Order object
-                        - Nmap:    Number of white noise map used to compute the threshold 
-
+                        - Nmap:    Number of white noise map used to compute the threshold
         --> Outputs:    - ncf:     Number of PCA components to remove
-        """    
-
+        """
         N_px          = 200    ### Half nb of px used to compute the dispersion for each pixel
         n_iter_fit    = 10     ### Number of iterations for the polynomial fit to the px std
-        
         ### Initialisation:
-        fff           = self.I_fin   
-        
+        fff           = self.I_fin
+        fm            = np.tile(np.nanmean(fff,axis=0),(len(fff),1))
+        fs            = np.tile(np.nanstd(fff,axis=0),(len(fff),1))
+        fff           = (fff-fm)/fs
         ### Determinate S/N at the center of the order for each epoch
-        indw          = np.argmin(np.abs(self.W_fin-self.W_fin.mean())) 
+        indw          = np.argmin(np.abs(self.W_fin-self.W_fin.mean()))
         std_mes       = np.std(fff[:,indw-N_px:indw+N_px],axis=1)
-        
         ### Determine the blaze amplification function (border of the order)
         WW            = self.W_fin - self.W_mean
         std_px        = np.std(fff,axis=0)
         std_in        = np.dot(std_mes.reshape((len(fff),1)),np.ones((1,len(self.W_fin))))
         model,filt    = poly_fit(WW,std_px,2,5,n_iter_fit)
         ampl          = model(WW)/np.min(model(WW))
-        
         ### Generate noise maps, amplify them, and apply PCA
         thres         = np.zeros(Nmap) ### Store highest eigenvalue for each noise map
-        for ii in range(Nmap):        
+        for ii in range(Nmap):
             ### Generate noise map
             NN    = np.random.normal(0.0,std_in*ampl)
-            Nf    = NN          
-            
+            Nm    = np.tile(np.nanmean(NN,axis=0),(len(NN),1))
+            Ns    = np.tile(np.nanstd(NN,axis=0),(len(NN),1))
+            Nf    = (NN-Nm)/Ns
             ### Apply PCA
             pca   = PCA(n_components=len(Nf))
             pca.fit(np.float32(Nf))
-            var       = pca.explained_variance_ratio_    
-            
-            ###Store highest eigenvalue     
+            var       = pca.explained_variance_ratio_
+            ###Store highest eigenvalue
             thres[ii] = np.max(var)
-    
         ### Apply PCA to observed data
         pca   = PCA(n_components=len(NN))
         x_pca = np.float32(fff)
-        pca.fit(x_pca)       
-        var   = pca.explained_variance_ratio_ 
-        
+        pca.fit(x_pca)
+        var   = pca.explained_variance_ratio_
         #plt.plot(var,"*")
         #plt.axhline(thr*np.max(thres))
         #plt.show()
-        
-
         ### Nb of components: larger than 2*max highenvalue
         ncf   = len(np.where(var>thr*np.max(thres))[0])
-
         return ncf

@@ -57,7 +57,7 @@ orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 
 ### Injection parameters - optionally inject a planet model
 inject   = True
-inj_amp  = 10.
+inj_amp  = 1.
 inj_Kp   = 83. #km/s 83km/s true_data
 inj_vsys = -4.71  #km/s -4.71 km/s true_data
 
@@ -80,7 +80,7 @@ deg_px   = 2                            ### Degree of the polynomial fit to the 
 
 ### Parameters for detrending with airmass
 det_airmass = True
-deg_airmass = 2
+deg_airmass = 1
 
 ### Parameters PCA
 mode_pca    = "pca"                     ### "pca"/"PCA" or "autoencoder"
@@ -95,7 +95,7 @@ if inject:
     outroot += 'inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}'.format(inj_amp,inj_Kp,inj_vsys)
     # load model
     # model files
-    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CH4'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -187,6 +187,7 @@ for nn in range(nord):
     print("ORDER",O.number)
     print(O.W_mean)
 
+
     ### First we identify strong telluric lines and remove the data within these lines -- see Boucher+2021
     #W_cl,I_cl =  O.remove_tellurics(dep_min,thres_up)  ### Need a telluric spectrum
 
@@ -202,8 +203,22 @@ for nn in range(nord):
     nep,npix  = I_cl.shape
 
     # purge nans and negatives
-    I_cl[np.isnan(I_cl)] = 0.
-    I_cl[I_cl<0] = 0.
+    ind   = []
+    for iep in range(nep):
+        i = np.where(np.isfinite(I_cl[iep])==True)[0]
+        ind.append(i)
+    r       = np.array(list(set.intersection(*map(set,ind))),dtype=int)
+    r       = np.sort(np.unique(r))
+    I_cl    = I_cl[:,r]
+    W_cl    = W_cl[r]
+    ind   = []
+    for iep in range(nep):
+        i = np.where(I_cl[iep]>=0.0)[0]
+        ind.append(i)
+    r       = np.array(list(set.intersection(*map(set,ind))),dtype=int)
+    r       = np.sort(np.unique(r))
+    I_cl    = I_cl[:,r]
+    W_cl    = W_cl[r]
 
     ### If the order does not contain enough points, it is discarded
     if len(W_cl) < Npt_lim:
@@ -351,12 +366,10 @@ for nn in range(nord):
         ### END of STEP 2
 
         #plt.plot(I_norm2[2])
-
-
-
         ### STEP 3 -- DETREND WITH AIRMASS -- OPTIONAL
+
         ind_flag = []
-        for uu in range(len(I_norm2)):      
+        for uu in range(len(I_norm2)):
             iiii = np.where(I_norm2[uu]<0.05)[0]
             ind_flag.append(iiii)
         ind_flag = np.sort(np.unique(np.concatenate(ind_flag)))
@@ -365,13 +378,25 @@ for nn in range(nord):
 
         if det_airmass:
             I_log           = np.log(I_norm2)
+            ind_flag = []
+            for iep in range(nep):
+                iiii = np.where(I_log[iep]==0.)[0]# just happens to be flux =1. so log flux 0.
+                ind_flag.append(iiii)
+            ind_flag = np.sort(np.unique(np.concatenate(ind_flag)))
+            I_log = np.delete(I_log,ind_flag,axis=1) # for now just delete these values
+            W_norm2 = np.delete(W_norm2,ind_flag)
             Il              = O.detrend_airmass(W_norm2,I_log,airmass,deg_airmass)
             O.I_fin         = np.exp(Il)
         else:
             O.I_fin         = I_norm2
             Il              = np.log(I_norm2)
-        O.W_fin  = W_norm2          
-        
+        O.W_fin  = W_norm2
+
+        plt.figure()
+        for iep in range(nep):
+            plt.plot(O.I_fin[iep])
+        plt.show()
+
         ### Removing the NaNs in Il
         ind   = []
         for uu in range(len(Il)):
@@ -383,38 +408,36 @@ for nn in range(nord):
         O.W_fin = O.W_fin[r]
         O.I_fin = O.I_fin[:,r]
         ff      = Il
-        if len(O.W_fin)-len(r) > 0: print(len(O.W_fin)-len(r),"points rejected")        
-        
-                          
+        if len(O.W_fin)-len(r) > 0: print(len(O.W_fin)-len(r),"points rejected")
 
         ### STEP 4 -- REMOVING CORRELATED NOISE -- PCA/AUTOENCODERS
         Il    = np.log(O.I_fin)
-        #im    = np.nanmean(Il)
-        #ist   = np.nanstd(Il)
-        ff    = np.copy(Il)
+        im = np.tile(np.nanmean(Il,axis=0),(len(phase),1))
+        ist = np.tile(np.nanstd(Il,axis=0),(len(phase),1))
+        ff = (Il-im)/ist
 
-
+        XX    = np.where(np.isnan(O.I_fin[0]))[0]
         if len(XX) > 0:
             print("ORDER",O.number,"intractable: DISCARDED\n")
             ind_rem.append(nn)
         else:
             if mode_pca == "pca" or mode_pca == "PCA":
 
-                if auto_tune: n_com = O.tune_pca(Nmap=5,thr_pca)
+                if auto_tune: n_com = O.tune_pca(Nmap=5,thr=thr_pca)
                 else: n_com = npca[nn]
-                
-                
+
+
                 pca   = PCA(n_components=n_com)
                 x_pca = np.float32(ff)
                 pca.fit(x_pca)
                 principalComponents = pca.transform(x_pca)
                 x_pca_projected = pca.inverse_transform(principalComponents)
-                O.I_pca = np.exp(ff-x_pca_projected) - 1.0
+                O.I_pca = np.exp((ff-x_pca_projected)*ist+im) - 1.0
                 NCF[nn] = n_com
 
                 print(n_com,"PCA components discarded")
 
-
+            #sys.exit()
             ### ESTIMATES FINAL METRICS
             N_px          = 200
             indw          = np.argmin(np.abs(O.W_fin-O.W_fin.mean()))
