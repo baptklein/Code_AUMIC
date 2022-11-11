@@ -67,7 +67,7 @@ if instrument=='igrins' or instrument=='IGRINS':
         skycalc_wlens.append(d['wlens'])
 
 ### Injection parameters - optionally inject a planet model
-inject   = True
+inject   = False
 inj_amp  = 3.
 inj_Kp   = 83. #km/s 83km/s true_data
 inj_vsys = -4.71  #km/s -4.71 km/s true_data
@@ -177,7 +177,7 @@ for nn in range(nord):
     if instrument=='igrins' or instrument=='IGRINS':
         # currently don't have skycalc models for spirou
         atm = []
-        for iep in range(nep):
+        for iep in range(len(O.I_raw)):
             atm.append(skycalc_models[iep][nn])
         O.I_atm = np.array(atm)
 
@@ -196,7 +196,7 @@ if not plot_all_orders:
     plot_ord = 10 # pick an example order to plot
 for nn in range(nord):
     if plot_all_orders:
-        plot=True
+        plot=False
     else:
         if nn==plot_ord:
             plot=False
@@ -209,11 +209,11 @@ for nn in range(nord):
 
     ### First we identify strong telluric lines and remove the data within these lines -- see Boucher+2021
     #
-    if instrument=='igrins' or instrument=='IGRINS':
-        W_cl,I_cl =  O.remove_tellurics(dep_min,thres_up)  ### Need a telluric spectrum
-    else:
-        W_cl,I_cl = np.copy(O.W_raw),np.copy(O.I_raw)
-        
+    #if instrument=='igrins' or instrument=='IGRINS':
+    #    W_cl,I_cl =  O.remove_tellurics(dep_min,thres_up)  ### Need a telluric spectrum
+    #else:
+    W_cl,I_cl = np.copy(O.W_raw),np.copy(O.I_raw)
+
     #if instrument=='igrins' or instrument=='IGRINS':
     #    I_cl+=0.1 # otherwise code ride loads of orders
     nep,npix  = I_cl.shape
@@ -226,6 +226,9 @@ for nn in range(nord):
         mp1=axes[0].imshow(I_cl, extent=extent, interpolation='nearest', aspect='auto')
         fig.colorbar(mp1,ax=axes[0])
         axes[0].set_title('Order {}'.format(O.number))
+    #plt.figure()
+    #plt.plot(I_cl[20])
+    #plt.show()
     # purge nans and negatives
     ind   = []
     for iep in range(nep):
@@ -235,14 +238,14 @@ for nn in range(nord):
     r       = np.sort(np.unique(r))
     I_cl    = I_cl[:,r]
     W_cl    = W_cl[r]
-    ind   = []
-    for iep in range(nep):
-        i = np.where(I_cl[iep]>=0.0)[0]
-        ind.append(i)
-    r       = np.array(list(set.intersection(*map(set,ind))),dtype=int)
-    r       = np.sort(np.unique(r))
-    I_cl    = I_cl[:,r]
-    W_cl    = W_cl[r]
+    #ind   = []
+    #for iep in range(nep):
+    #    i = np.where(I_cl[iep]>=0.0)[0]
+    #    ind.append(i)
+    #r       = np.array(list(set.intersection(*map(set,ind))),dtype=int)
+    #r       = np.sort(np.unique(r))
+    #I_cl    = I_cl[:,r]
+    #W_cl    = W_cl[r]
 
     ### If the order does not contain enough points, it is discarded
     if len(W_cl) < Npt_lim:
@@ -380,6 +383,9 @@ for nn in range(nord):
 
         W_norm2,I_norm2 = O.filter_pixel(W_norm1,I_norm1,deg_px,sig_out)
         print(np.std(I_norm2[0,1500:2500]))
+        plt.figure()
+        plt.plot(I_norm2[20])
+        plt.show()
         ### END of STEP 2
 
         #plt.plot(I_norm2[2])
