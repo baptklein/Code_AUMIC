@@ -33,6 +33,8 @@ if __name__ == "__main__":
         help="use the masked spectra")
     parser.add_argument("--airmass", action="store_true", default=False,\
         help="use the airmass-detrended spectra")
+    parser.add_argument("--deg-airmass", type=int, default=int(2),\
+        help="degree of airmass-detrending")
     parser.add_argument("--inject", action="store_true", default=False,\
         help="if true, use spectra with injected signal")
     parser.add_argument("--inj-Kp", type=float, default=0.0, \
@@ -64,7 +66,7 @@ if __name__ == "__main__":
         instrument = 'spirou'
 
     # model files
-    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CH4'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -88,7 +90,7 @@ if __name__ == "__main__":
         data_dir += "true_data/"
         text = 'true data'
     if args.airmass:
-        data_dir += 'airmass/'
+        data_dir += 'airmass_deg{}/'.format(args.deg_airmass)
     if args.red_mode=='pca' or args.red_mode=='PCA':
         data_dir += 'PCA/'
     if args.noLS:
@@ -123,7 +125,7 @@ if __name__ == "__main__":
     else:
         save_dir += "true_data/"
     if args.airmass:
-        save_dir += 'airmass/'
+        save_dir += 'airmass_deg{}/'.format(args.deg_airmass)
     if args.red_mode=='pca' or args.red_mode=='PCA':
         save_dir+= 'PCA/'
     if args.noLS:

@@ -21,7 +21,7 @@ from functions import *
 
 ############################# VERSION ADAPTED FOR IGRINS DATA
 outroot    = 'Input_data/'
-instrument = 'spirou' # models do not extend far enough for igrins
+instrument = 'igrins' # models do not extend far enough for igrins
 c0         = Constants().c0
 
 if instrument == 'IGRINS' or instrument == 'igrins':
@@ -54,10 +54,21 @@ with open(filename,'rb') as specfile:
     A = pickle.load(specfile)
 orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 
+if instrument=='igrins' or instrument=='IGRINS':
+    # I should save these in Ia under read_data.py
+    skycalc_dir = outroot+'skycalc_models/'
+    file_list = sorted(glob.glob(skycalc_dir+'skycalc_models_AU_MIC_Gemini_South_frame*.npz'))
+
+    skycalc_models = [] # will be in order: nep, ndet, npix
+    skycalc_wlens = [] # same as models
+    for ifile in range(len(file_list)):
+        d = np.load(file_list[ifile],allow_pickle=True)
+        skycalc_models.append(d['flux'])
+        skycalc_wlens.append(d['wlens'])
 
 ### Injection parameters - optionally inject a planet model
 inject   = True
-inj_amp  = 1.
+inj_amp  = 3.
 inj_Kp   = 83. #km/s 83km/s true_data
 inj_vsys = -4.71  #km/s -4.71 km/s true_data
 
@@ -67,7 +78,7 @@ align    = False      # optionally align the spectra
 dep_min  = 0.5        # remove all data when telluric relative absorption < 1 - dep_min
 thres_up = 0.03       # Remove the line until reaching 1-thres_up
 Npt_lim  = 2000       # If the order contains less than Npt_lim points, it is discarded from the analysis
-doLS     = False      # perform stretch/shift of reference stellar out-of-transit mean spectrum to each observed spectrum (ATM only turned off for spirou)
+doLS     = True      # perform stretch/shift of reference stellar out-of-transit mean spectrum to each observed spectrum (ATM only turned off for spirou)
 
 ### Interpolation parameters
 sig_g    = 1.0                         ### STD of one SPIRou px in km/s
@@ -80,7 +91,7 @@ deg_px   = 2                            ### Degree of the polynomial fit to the 
 
 ### Parameters for detrending with airmass
 det_airmass = True
-deg_airmass = 1
+deg_airmass = 2
 
 ### Parameters PCA
 mode_pca    = "pca"                     ### "pca"/"PCA" or "autoencoder"
@@ -112,6 +123,7 @@ if inject:
         T_depth.append(float(v[1].split('\n')[0]))
     W_mod    = np.array(W_mod)#/1e3 # convert to um
     T_depth  = np.array(T_depth)
+    print(W_mod)
     mod_func = interpolate.interp1d(W_mod,T_depth)
     outroot += '_{}/'.format(sp)
 else:
@@ -119,7 +131,7 @@ else:
 if align:
     outroot += 'aligned/'
 if det_airmass:
-    outroot += 'airmass/'
+    outroot += 'airmass_deg{}/'.format(deg_airmass)
 if mode_pca == "pca" or mode_pca == "PCA":
     outroot += "PCA/"
 if not doLS:
@@ -142,6 +154,7 @@ list_ord = []
 for nn in range(nord):
     O        = Order(orders[nn])
     O.W_raw  = np.array(WW[nn],dtype=float)
+    print(O.W_raw.min())
     if inject:
         print('\n injecting a model of {}'.format(sp))
         print('\n at a Kp: {} km/s, vsys: {} km/s'.format(inj_Kp,inj_vsys))
@@ -161,7 +174,13 @@ for nn in range(nord):
     #O.I_atm  = np.array(Ia[nn],dtype=float)
     O.SNR    = np.array(SN[nn],dtype=float)
     O.W_mean = O.W_raw.mean()
-    print(O.W_mean)
+    if instrument=='igrins' or instrument=='IGRINS':
+        # currently don't have skycalc models for spirou
+        atm = []
+        for iep in range(nep):
+            atm.append(skycalc_models[iep][nn])
+        O.I_atm = np.array(atm)
+
     list_ord.append(O)
 print("DONE\n")
 
@@ -177,7 +196,7 @@ if not plot_all_orders:
     plot_ord = 10 # pick an example order to plot
 for nn in range(nord):
     if plot_all_orders:
-        plot=False
+        plot=True
     else:
         if nn==plot_ord:
             plot=False
@@ -189,19 +208,24 @@ for nn in range(nord):
 
 
     ### First we identify strong telluric lines and remove the data within these lines -- see Boucher+2021
-    #W_cl,I_cl =  O.remove_tellurics(dep_min,thres_up)  ### Need a telluric spectrum
-
-
-    #ind   = []
-    #for nn in range(len(I_bl)):
-    #    i = np.where(np.isfinite(I_bl[nn])==True)[0]
-    #    ind.append(i)
-    #r  = np.array(list(set.intersection(*map(set,ind))),dtype=int)
-    #r  = np.sort(np.unique(r))
-
-    W_cl,I_cl = np.copy(O.W_raw),np.copy(O.I_raw)+0.1
+    #
+    if instrument=='igrins' or instrument=='IGRINS':
+        W_cl,I_cl =  O.remove_tellurics(dep_min,thres_up)  ### Need a telluric spectrum
+    else:
+        W_cl,I_cl = np.copy(O.W_raw),np.copy(O.I_raw)
+        
+    #if instrument=='igrins' or instrument=='IGRINS':
+    #    I_cl+=0.1 # otherwise code ride loads of orders
     nep,npix  = I_cl.shape
-
+    if plot:
+        fig,axes = plt.subplots(2,1,figsize=(8,4))
+        wmin,wmax = W_cl.min(),W_cl.max()
+        dw = np.average(W_cl[1:]-W_cl[:-1])
+        extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
+        xlabel = 'wavelength (nm)'
+        mp1=axes[0].imshow(I_cl, extent=extent, interpolation='nearest', aspect='auto')
+        fig.colorbar(mp1,ax=axes[0])
+        axes[0].set_title('Order {}'.format(O.number))
     # purge nans and negatives
     ind   = []
     for iep in range(nep):
@@ -227,6 +251,7 @@ for nn in range(nord):
         ind_rem.append(nn)
         txt = str(O.number) + "   --\n"
         file.write(txt)
+        plt.show()
     else:
         print(len(O.W_raw)-len(W_cl),"pts removed from order",O.number,"(",O.W_mean,"nm) -- OK")
 
@@ -276,15 +301,7 @@ for nn in range(nord):
             spec_aligned[np.isnan(spec_aligned)] = 0.
             I_cl = spec_aligned
 
-        if plot:
-            fig,axes = plt.subplots(2,1,figsize=(8,4))
-            wmin,wmax = W_cl.min(),W_cl.max()
-            dw = np.average(W_cl[1:]-W_cl[:-1])
-            extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
-            xlabel = 'wavelength (nm)'
-            mp1=axes[0].imshow(I_cl, extent=extent, interpolation='nearest', aspect='auto')
-            fig.colorbar(mp1,ax=axes[0])
-            axes[0].set_title('Order {}'.format(O.number))
+
 
         ### STEP 1 -- remove master out-of-transits
         # First in Earth frame, then stellar for IGRINS (opposite for SPIRou)
@@ -340,13 +357,12 @@ for nn in range(nord):
             I_med2  = np.nanmedian(np.concatenate((I_sub1[:n_ini],I_sub1[n_end:]),axis=0),axis=0)
             I_sub2  = np.zeros(I_sub1.shape) + np.nan
 
-
             for kk in range(len(I_cl)):
                 I_sub2[kk] = I_sub1[kk]/I_med2
 
             ### Remove extremities to avoid interpolation errors
             W_sub = W_cl[N_bor:-N_bor]
-            I_sub = I_sub2[:,N_bor:-N_bor]
+            I_sub = I_sub1[:,N_bor:-N_bor]#I_sub = I_sub2[:,N_bor:-N_bor]
 
         ### purge NaNs
         l = np.ones_like(W_sub,'bool')
@@ -355,7 +371,7 @@ for nn in range(nord):
                 l[ipix] = False
         W_sub = W_sub[l]
         I_sub = I_sub[:,l]
-
+        print(I_sub.shape)
         ### END of STEP 1
 
         ### STEP 2 -- NORMALISATION AND OUTLIER REMOVAL
@@ -363,6 +379,7 @@ for nn in range(nord):
         ### Correct for bad pixels
 
         W_norm2,I_norm2 = O.filter_pixel(W_norm1,I_norm1,deg_px,sig_out)
+        print(np.std(I_norm2[0,1500:2500]))
         ### END of STEP 2
 
         #plt.plot(I_norm2[2])
@@ -376,15 +393,17 @@ for nn in range(nord):
         I_norm2  = np.delete(I_norm2,ind_flag,axis=1)
         W_norm2  = np.delete(W_norm2,ind_flag)
 
+
         if det_airmass:
             I_log           = np.log(I_norm2)
-            ind_flag = []
-            for iep in range(nep):
-                iiii = np.where(I_log[iep]==0.)[0]# just happens to be flux =1. so log flux 0.
-                ind_flag.append(iiii)
-            ind_flag = np.sort(np.unique(np.concatenate(ind_flag)))
-            I_log = np.delete(I_log,ind_flag,axis=1) # for now just delete these values
-            W_norm2 = np.delete(W_norm2,ind_flag)
+            #ind_flag = []
+            #for iep in range(nep):
+            #    iiii = np.where(I_log[iep]==0.)[0]# just happens to be flux =1. so log flux 0.
+            #    ind_flag.append(iiii)
+            #ind_flag = np.sort(np.unique(np.concatenate(ind_flag)))
+            #print(ind_flag)
+            #I_log = np.delete(I_log,ind_flag,axis=1) # for now just delete these values
+            #W_norm2 = np.delete(W_norm2,ind_flag)
             Il              = O.detrend_airmass(W_norm2,I_log,airmass,deg_airmass)
             O.I_fin         = np.exp(Il)
         else:
@@ -392,22 +411,27 @@ for nn in range(nord):
             Il              = np.log(I_norm2)
         O.W_fin  = W_norm2
 
-        plt.figure()
-        for iep in range(nep):
-            plt.plot(O.I_fin[iep])
-        plt.show()
-
         ### Removing the NaNs in Il
-        ind   = []
+        #ind   = []
+        #for uu in range(len(Il)):
+        #    i = np.where(np.isfinite(Il[uu])==True)[0]
+        #    ind.append(i)
+        #r       = np.array(list(set.intersection(*map(set,ind))),dtype=int)
+        #r       = np.sort(np.unique(r))
+        #Il      = Il[:,r]
+        #O.W_fin = O.W_fin[r]
+        #O.I_fin = O.I_fin[:,r]
+        #ff      = Il
+
+        ind_nan = []
         for uu in range(len(Il)):
-            i = np.where(np.isfinite(Il[uu])==True)[0]
-            ind.append(i)
-        r       = np.array(list(set.intersection(*map(set,ind))),dtype=int)
-        r       = np.sort(np.unique(r))
-        Il      = Il[:,r]
-        O.W_fin = O.W_fin[r]
-        O.I_fin = O.I_fin[:,r]
-        ff      = Il
+        	i = np.where(np.isnan(Il[uu]))[0]
+        	ind_nan.append(i)
+        ind_nan = np.sort(np.unique(np.concatenate(ind_nan)))
+        Il = np.delete(Il,ind_nan,axis=1)
+        O.I_fin = np.delete(O.I_fin,ind_nan,axis=1)
+        O.W_fin = np.delete(O.W_fin,ind_nan,axis=0)
+
         if len(O.W_fin)-len(r) > 0: print(len(O.W_fin)-len(r),"points rejected")
 
         ### STEP 4 -- REMOVING CORRELATED NOISE -- PCA/AUTOENCODERS

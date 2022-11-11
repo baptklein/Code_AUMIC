@@ -822,7 +822,7 @@ class Order:
                         - I_pred: Best-fitting modelled sequence of spectra
         """
         indw    = np.argmin(np.abs(W-self.W_mean))
-        print(np.std(I[:,indw-200:indw+200],axis=1))
+        #print(np.std(I[:,indw-200:indw+200],axis=1))
         COV_inv = np.diag(1./np.std(I[:,indw-200:indw+200],axis=1)**(2)) ## Assumes that normalized spectra dominated by white noise
         X       = np.ones((len(I),deg+1))
         for ii in range(deg): X[:,ii+1] = airmass**(ii+1)
@@ -880,6 +880,7 @@ class Order:
         n_iter_fit    = 10     ### Number of iterations for the polynomial fit to the px std
         ### Initialisation:
         fff           = self.I_fin
+        print(fff.shape)
         fm            = np.tile(np.nanmean(fff,axis=0),(len(fff),1))
         fs            = np.tile(np.nanstd(fff,axis=0),(len(fff),1))
         fff           = (fff-fm)/fs
@@ -900,6 +901,7 @@ class Order:
             Nm    = np.tile(np.nanmean(NN,axis=0),(len(NN),1))
             Ns    = np.tile(np.nanstd(NN,axis=0),(len(NN),1))
             Nf    = (NN-Nm)/Ns
+            #print()
             ### Apply PCA
             pca   = PCA(n_components=len(Nf))
             pca.fit(np.float32(Nf))
