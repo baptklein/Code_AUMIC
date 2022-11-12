@@ -75,7 +75,8 @@ inj_vsys = -4.71  #km/s -4.71 km/s true_data
 
 ### Data reduction parameters
 align    = False      # optionally align the spectra
-dep_min  = 0.5        # remove all data when telluric relative absorption < 1 - dep_min
+fitblaze = True       # optionally fit a blaze function to IGRINS spectra
+dep_min  = 0.6        # remove all data when telluric relative absorption < 1 - dep_min
 thres_up = 0.03       # Remove the line until reaching 1-thres_up
 Npt_lim  = 2000       # If the order contains less than Npt_lim points, it is discarded from the analysis
 doLS     = True      # perform stretch/shift of reference stellar out-of-transit mean spectrum to each observed spectrum (ATM only turned off for spirou)
@@ -130,6 +131,8 @@ else:
     outroot += 'true_data/'
 if align:
     outroot += 'aligned/'
+if blaze:
+    outroot += 'blazed/'
 if det_airmass:
     outroot += 'airmass_deg{}/'.format(deg_airmass)
 if mode_pca == "pca" or mode_pca == "PCA":
@@ -209,10 +212,10 @@ for nn in range(nord):
 
     ### First we identify strong telluric lines and remove the data within these lines -- see Boucher+2021
     #
-    #if instrument=='igrins' or instrument=='IGRINS':
-    #    W_cl,I_cl =  O.remove_tellurics(dep_min,thres_up)  ### Need a telluric spectrum
-    #else:
-    W_cl,I_cl = np.copy(O.W_raw),np.copy(O.I_raw)
+    if instrument=='igrins' or instrument=='IGRINS':
+        W_cl,I_cl =  O.remove_tellurics(dep_min,thres_up)  ### Need a telluric spectrum
+    else:
+        W_cl,I_cl = np.copy(O.W_raw),np.copy(O.I_raw)
 
     #if instrument=='igrins' or instrument=='IGRINS':
     #    I_cl+=0.1 # otherwise code ride loads of orders
@@ -229,7 +232,16 @@ for nn in range(nord):
     #plt.figure()
     #plt.plot(I_cl[20])
     #plt.show()
+
+    if instrument=='igrins' or instrument=='IGRINS':
+        # mask low flux before fitting blaze
+        I_mean = np.mean(I_cl,axis=0)
+        ind_low = np.where(I_mean<=0.15)[0]
+        I_cl[:,ind_low] = np.nan
+        W_cl[:,ind_low] = np.nan
+
     # purge nans and negatives
+    nep,npix = I_cl.shape
     ind   = []
     for iep in range(nep):
         i = np.where(np.isfinite(I_cl[iep])==True)[0]
@@ -238,6 +250,7 @@ for nn in range(nord):
     r       = np.sort(np.unique(r))
     I_cl    = I_cl[:,r]
     W_cl    = W_cl[r]
+    nep,npix = I_cl.shape
     #ind   = []
     #for iep in range(nep):
     #    i = np.where(I_cl[iep]>=0.0)[0]
@@ -259,6 +272,7 @@ for nn in range(nord):
         print(len(O.W_raw)-len(W_cl),"pts removed from order",O.number,"(",O.W_mean,"nm) -- OK")
 
         if align:
+            # should move this before masking low flux
             # WOULD NEED TO PROPAGATE UNCERTAINTIES IF NEEDED FURTHER DOWN THE LINE
             # crop edge of order
             I_cl[:,:100] = 0.
@@ -309,33 +323,66 @@ for nn in range(nord):
         ### STEP 1 -- remove master out-of-transits
         # First in Earth frame, then stellar for IGRINS (opposite for SPIRou)
         if instrument == 'IGRINS' or instrument == 'igrins':
+            # first fit a blaze function
+            # try fitting blaze without these low flux regions
+            if fitblaze:
+                blaze = []
+                maxrms = 0.005
+                # fit blaze for each epoch
+                for iep in range(nep):
+                    test_flux = I_cl[iep]
+                    test_wlens = np.copy(W_cl)
+                    #plt.plot(test_wlens,test_flux/np.max(test_flux))
+
+                    mask = np.ones(len(test_flux),'bool')
+                    normspec = test_flux/np.max(test_flux)
+                    curcall = 0
+                    residrms = 1
+                    numcall = 30
+                    while ((curcall < numcall) and (residrms > maxrms)):
+                        #print('On iteration {} of {}'.format(curcall,numcall))
+                        z,mask,residrms,test_wlens,normspec = O.fit_blaze(test_wlens, normspec, maxrms,
+                                         numcalls=50, curcall=curcall,verbose=False,showplot=False)
+                        #mask = ~a
+                        curcall +=1
+                    wl = WW
+                    cfit = np.poly1d(z)
+                    plt.plot(wl,test_flux/np.max(test_flux))
+                    plt.plot(wl,cfit(wl))
+                    plt.title(iep)
+                    plt.show()
+                    blaze.append(cfit(wl))
+                I_cl = I_cl/blaze
+
+
+
             ### First compute reference spectrum in the Geocentric frame
-            I_med2  = np.median(np.concatenate((I_cl[:n_ini],I_cl[n_end:]),axis=0),axis=0)
-            I_sub2  = np.zeros(I_cl.shape)
+            #I_med2  = np.median(np.concatenate((I_cl[:n_ini],I_cl[n_end:]),axis=0),axis=0)
+            #I_sub2  = np.zeros(I_cl.shape)
 
             # for each epoch
-            for kk in range(len(I_cl)):
-                X          = np.array([np.ones(len(I_med2)),I_med2],dtype=float).T
-                p,pe       = LS(X,I_cl[kk])
-                Ip         = np.dot(X,p)
-                I_sub2[kk] = I_cl[kk]/Ip
+            #for kk in range(len(I_cl)):
+            #    X          = np.array([np.ones(len(I_med2)),I_med2],dtype=float).T
+            #    p,pe       = LS(X,I_cl[kk])
+            #    Ip         = np.dot(X,p)
+            #    I_sub2[kk] = I_cl[kk]/Ip
             ### Now mean spectrum in the stellar rest frame
-            V_cl      = c0*(W_cl/O.W_mean-1.)
-            I_bary    = move_spec(V_cl,I_sub2,V_corr,sig_g)  ## Shift to stellar rest frame
-            I_med     = np.median(np.concatenate((I_bary[:n_ini],I_bary[n_end:]),axis=0),axis=0) ## Compute median out-of-transit
-            I_med_geo = move_spec(V_cl,np.array([I_med]),-1.*V_corr,sig_g)  ## Move back ref spectrum to Geocentric frame
-            I_sub1    = np.zeros(I_sub2.shape)
+            #V_cl      = c0*(W_cl/O.W_mean-1.)
+            #I_bary    = move_spec(V_cl,I_sub2,V_corr,sig_g)  ## Shift to stellar rest frame
+            #I_med     = np.median(np.concatenate((I_bary[:n_ini],I_bary[n_end:]),axis=0),axis=0) ## Compute median out-of-transit
+            #I_med_geo = move_spec(V_cl,np.array([I_med]),-1.*V_corr,sig_g)  ## Move back ref spectrum to Geocentric frame
+            #I_sub1    = np.zeros(I_sub2.shape)
 
             # a stretch/shift of the stellar ref spec to each spectrum (then remove)
-            for kk in range(len(I_cl)):
-                X          = np.array([np.ones(len(I_med_geo[kk])),I_med_geo[kk]],dtype=float).T
-                p,pe       = LS(X,I_sub2[kk])
-                Ip         = np.dot(X,p)
-                I_sub1[kk] = I_sub2[kk]/Ip
+            #for kk in range(len(I_cl)):
+            #    X          = np.array([np.ones(len(I_med_geo[kk])),I_med_geo[kk]],dtype=float).T
+            #    p,pe       = LS(X,I_sub2[kk])
+            #    Ip         = np.dot(X,p)
+            #    I_sub1[kk] = I_sub2[kk]/Ip
 
             ### Remove extremities to avoid interpolation errors
             W_sub = W_cl[N_bor:-N_bor]
-            I_sub = I_sub1[:,N_bor:-N_bor]
+            I_sub = I_cl[:,N_bor:-N_bor]#I_sub1[:,N_bor:-N_bor]
 
         elif instrument =='SPIROU' or instrument=='spirou':
             ### If the order is kept - Remove high-SNR(?) out-of-transit reference spectrum
@@ -378,7 +425,10 @@ for nn in range(nord):
         ### END of STEP 1
 
         ### STEP 2 -- NORMALISATION AND OUTLIER REMOVAL
-        W_norm1,I_norm1 = O.normalize(W_sub,I_sub,N_med,sig_out,N_bor)
+        if blaze:
+            W_norm1,I_norm1 = W_sub,I_sub
+        else:
+            W_norm1,I_norm1 = O.normalize(W_sub,I_sub,N_med,sig_out,N_bor)
         ### Correct for bad pixels
 
         W_norm2,I_norm2 = O.filter_pixel(W_norm1,I_norm1,deg_px,sig_out)

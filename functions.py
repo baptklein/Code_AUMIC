@@ -742,7 +742,78 @@ class Order:
         return W_cl,I_cl
 
 
+    # -----------------------------------------------------------
+    # Fit a blaze function (the continuum) to the (IGRINS) spectra
+    #
+    # -----------------------------------------------------------
+    def fit_blaze(self, Ws, Is, rms_thres, numcalls=10, curcall=0,
+                 verbose=False, showplot=False):
+        """
+        --> Inputs:     - Order object
+                        - Ws:        Wavelength vector
+                        - Is:        2D median-normalised flux matrix
+                        - rms_thres: threhsold rms for the fit in normalised rms
+                                     e.g a threshold of 0.01 will keep iterating
+                                     until the rms of the residuals is 1%
+                        - numcalls:  the max number of iterations
+                        - curcall:   store current iteration
+                        - verbose:   print info
+                        - showplot:  plot things
 
+        --> Outputs:    - z:         fitted Polynomial
+                        - mask:      mask applied to the spectra
+                        - residrms:  rms of the residuals
+                        - Ws:        newly masked wavelength vector
+                        - Is:        masked flux matrix
+        """
+        #get wavelength range:
+        rwav = max(Ws) - min(Ws)
+
+        #center wavelength range about zero:
+        wavcent = Ws - min(Ws) - rwav/2.
+
+        #normalize the spectrum:
+        #normspec = spec/max(spec)
+
+        #fit a polynomial to the data:
+        z = np.polyfit(Ws, Is, 7)
+
+        #make a function based on those polynomial coefficients:
+        cfit = np.poly1d(z)
+
+        #make a lower threshold that is offset below the continuum fit. All points
+        #below this fit (i.e. spectral lines) will be excluded from the fit in the
+        #next iteration.
+        thresh = cfit(Ws) - (0.5 * (1. / (curcall + 1)))
+        mask = np.where(Is > thresh)[0]
+        #print(mask)
+        a = np.ones(len(Is),'bool')
+        a[mask] = 0
+        if (showplot is True):
+            #plot the original spectrum:
+            plt.plot(Ws, Is)
+            #overplot the continuum fit
+            plt.plot(Ws, cfit(Ws))
+            plt.plot(Ws, thresh)
+            plt.plot(Ws[a], Is[a], 'r.')
+            plt.show()
+
+        mask = np.invert(a)
+
+        residrms = np.std(Is/cfit(Ws))
+        if (verbose is True):
+            print('now in iteration {0}'.format(curcall))
+            print('residrms is now {0:.5f}'.format(residrms))
+            print('maxrms is {0})'.format(rms_thres))
+            #print('z is: {}'.format(z))
+
+        #now un-center the wavelength range:
+        #if curcall == 0:
+            #z[-1] = z[-1] - min(wav) - wavspread/2.
+
+        Ws = Ws[mask]
+        Is = Is[mask]
+        return z,mask,residrms,Ws,Is
     # -----------------------------------------------------------
     # Normalize and remove outlier for each residual spectrum
     # -- Step 1.4 of the data reduction procedure
