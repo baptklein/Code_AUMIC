@@ -31,6 +31,8 @@ if __name__ == "__main__":
          (for IGRINS data)")
     parser.add_argument("--masked", action="store_true", default=False,\
         help="use the masked spectra")
+    parser.add_argument("--blazed", action="store_true", default=False,\
+        help="for IGRINS use the blaze corrected data")
     parser.add_argument("--airmass", action="store_true", default=False,\
         help="use the airmass-detrended spectra")
     parser.add_argument("--deg-airmass", type=int, default=int(2),\
@@ -52,7 +54,8 @@ if __name__ == "__main__":
         transit frames only")
     parser.add_argument("--noLS", action="store_true", default=False,\
         help="this option will turn off the LS shift/stretch of the out-of-transit ref spec \
-        in reduce_data.py")
+        in reduce_data.py"
+
 
 
     args = parser.parse_args()
@@ -89,6 +92,8 @@ if __name__ == "__main__":
     else:
         data_dir += "true_data/"
         text = 'true data'
+    if args.blazed:
+        data_dir += 'blazed/'
     if args.airmass:
         data_dir += 'airmass_deg{}/'.format(args.deg_airmass)
     if args.red_mode=='pca' or args.red_mode=='PCA':
@@ -124,6 +129,8 @@ if __name__ == "__main__":
         args.inj_Kp,args.inj_vsys,sp)
     else:
         save_dir += "true_data/"
+    if args.blazed:
+        save_dir += "blazed/"
     if args.airmass:
         save_dir += 'airmass_deg{}/'.format(args.deg_airmass)
     if args.red_mode=='pca' or args.red_mode=='PCA':
