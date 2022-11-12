@@ -776,7 +776,7 @@ class Order:
         #normspec = spec/max(spec)
 
         #fit a polynomial to the data:
-        z = np.polyfit(Ws, Is, 7)
+        z = np.polyfit(Ws, Is, 5)
 
         #make a function based on those polynomial coefficients:
         cfit = np.poly1d(z)
@@ -789,7 +789,7 @@ class Order:
         #print(mask)
         a = np.ones(len(Is),'bool')
         a[mask] = 0
-        if (showplot is True):
+        if showplot:
             #plot the original spectrum:
             plt.plot(Ws, Is)
             #overplot the continuum fit
@@ -893,8 +893,17 @@ class Order:
                         - I_pred: Best-fitting modelled sequence of spectra
         """
         indw    = np.argmin(np.abs(W-self.W_mean))
-        #print(np.std(I[:,indw-200:indw+200],axis=1))
-        COV_inv = np.diag(1./np.std(I[:,indw-200:indw+200],axis=1)**(2)) ## Assumes that normalized spectra dominated by white noise
+        #print(indw)
+        #print(self.W_mean)
+        if indw<=200:
+            # then beginning of order has been chopped
+            indw += 200 # get as close as poss to centre
+        elif indw>=len(W)-200:
+            # end of order has been chopped
+            indw -= 200
+
+        #print(np.nanstd(I[:,indw-200:indw+200],axis=1))
+        COV_inv = np.diag(1./np.nanstd(I[:,indw-200:indw+200],axis=1)**(2)) ## Assumes that normalized spectra dominated by white noise
         X       = np.ones((len(I),deg+1))
         for ii in range(deg): X[:,ii+1] = airmass**(ii+1)
         pb,pbe = LS(X,I,COV_inv)
@@ -951,17 +960,21 @@ class Order:
         n_iter_fit    = 10     ### Number of iterations for the polynomial fit to the px std
         ### Initialisation:
         fff           = self.I_fin
-        print(fff.shape)
         fm            = np.tile(np.nanmean(fff,axis=0),(len(fff),1))
         fs            = np.tile(np.nanstd(fff,axis=0),(len(fff),1))
+
         fff           = (fff-fm)/fs
         ### Determinate S/N at the center of the order for each epoch
         indw          = np.argmin(np.abs(self.W_fin-self.W_fin.mean()))
+        if indw<=N_px:
+            indw+=N_px
+        elif indw>=len(self.W_fin)-N_px:
+            indw-=N_px
         std_mes       = np.std(fff[:,indw-N_px:indw+N_px],axis=1)
         ### Determine the blaze amplification function (border of the order)
         WW            = self.W_fin - self.W_mean
         std_px        = np.std(fff,axis=0)
-        std_in        = np.dot(std_mes.reshape((len(fff),1)),np.ones((1,len(self.W_fin))))
+        std_in        = np.dot(std_mes.reshape((len(fff),1)),np.ones((1,len(WW))))
         model,filt    = poly_fit(WW,std_px,2,5,n_iter_fit)
         ampl          = model(WW)/np.min(model(WW))
         ### Generate noise maps, amplify them, and apply PCA

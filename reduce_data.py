@@ -18,7 +18,8 @@ from scipy.optimize import curve_fit
 from scipy import interpolate
 import time
 from functions import *
-
+import warnings
+warnings.simplefilter('ignore',np.RankWarning)
 ############################# VERSION ADAPTED FOR IGRINS DATA
 outroot    = 'Input_data/'
 instrument = 'igrins' # models do not extend far enough for igrins
@@ -78,7 +79,7 @@ align    = False      # optionally align the spectra
 fitblaze = True       # optionally fit a blaze function to IGRINS spectra
 dep_min  = 0.6        # remove all data when telluric relative absorption < 1 - dep_min
 thres_up = 0.03       # Remove the line until reaching 1-thres_up
-Npt_lim  = 2000       # If the order contains less than Npt_lim points, it is discarded from the analysis
+Npt_lim  = 200       # If the order contains less than Npt_lim points, it is discarded from the analysis
 doLS     = True      # perform stretch/shift of reference stellar out-of-transit mean spectrum to each observed spectrum (ATM only turned off for spirou)
 
 ### Interpolation parameters
@@ -131,7 +132,7 @@ else:
     outroot += 'true_data/'
 if align:
     outroot += 'aligned/'
-if blaze:
+if fitblaze:
     outroot += 'blazed/'
 if det_airmass:
     outroot += 'airmass_deg{}/'.format(deg_airmass)
@@ -199,7 +200,7 @@ if not plot_all_orders:
     plot_ord = 10 # pick an example order to plot
 for nn in range(nord):
     if plot_all_orders:
-        plot=False
+        plot=True
     else:
         if nn==plot_ord:
             plot=False
@@ -208,68 +209,80 @@ for nn in range(nord):
     O         = list_ord[nn]
     print("ORDER",O.number)
     print(O.W_mean)
-
+    if nn==0:
+        print('discard first order')
+        ind_rem.append(nn)
+        txt = str(O.number) + "   --\n"
+        file.write(txt)
+        continue
 
     ### First we identify strong telluric lines and remove the data within these lines -- see Boucher+2021
     #
-    if instrument=='igrins' or instrument=='IGRINS':
-        W_cl,I_cl =  O.remove_tellurics(dep_min,thres_up)  ### Need a telluric spectrum
-    else:
-        W_cl,I_cl = np.copy(O.W_raw),np.copy(O.I_raw)
+    #if instrument=='igrins' or instrument=='IGRINS':
+    #    W_cl,I_cl =  O.remove_tellurics(dep_min,thres_up)  ### Need a telluric spectrum
+    #else:
+    W_cl,I_cl = np.copy(O.W_raw),np.copy(O.I_raw)
 
     #if instrument=='igrins' or instrument=='IGRINS':
     #    I_cl+=0.1 # otherwise code ride loads of orders
-    nep,npix  = I_cl.shape
-    if plot:
-        fig,axes = plt.subplots(2,1,figsize=(8,4))
-        wmin,wmax = W_cl.min(),W_cl.max()
-        dw = np.average(W_cl[1:]-W_cl[:-1])
-        extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
-        xlabel = 'wavelength (nm)'
-        mp1=axes[0].imshow(I_cl, extent=extent, interpolation='nearest', aspect='auto')
-        fig.colorbar(mp1,ax=axes[0])
-        axes[0].set_title('Order {}'.format(O.number))
-    #plt.figure()
-    #plt.plot(I_cl[20])
-    #plt.show()
 
-    if instrument=='igrins' or instrument=='IGRINS':
-        # mask low flux before fitting blaze
-        I_mean = np.mean(I_cl,axis=0)
-        ind_low = np.where(I_mean<=0.15)[0]
-        I_cl[:,ind_low] = np.nan
-        W_cl[:,ind_low] = np.nan
 
-    # purge nans and negatives
-    nep,npix = I_cl.shape
-    ind   = []
-    for iep in range(nep):
-        i = np.where(np.isfinite(I_cl[iep])==True)[0]
-        ind.append(i)
-    r       = np.array(list(set.intersection(*map(set,ind))),dtype=int)
-    r       = np.sort(np.unique(r))
-    I_cl    = I_cl[:,r]
-    W_cl    = W_cl[r]
-    nep,npix = I_cl.shape
-    #ind   = []
-    #for iep in range(nep):
-    #    i = np.where(I_cl[iep]>=0.0)[0]
-    #    ind.append(i)
-    #r       = np.array(list(set.intersection(*map(set,ind))),dtype=int)
-    #r       = np.sort(np.unique(r))
-    #I_cl    = I_cl[:,r]
-    #W_cl    = W_cl[r]
+    if len(W_cl)>0:
+        if instrument=='igrins' or instrument=='IGRINS':
+            # mask low flux before fitting blaze
+            I_mean = np.mean(I_cl,axis=0)
+            ind_low = np.where(I_mean<=0.15)[0]
+            I_cl[:,ind_low] = np.nan
+            W_cl[ind_low] = np.nan
+
+        # purge nans and negatives
+        nep,npix = I_cl.shape
+        ind   = []
+        for iep in range(nep):
+            i = np.where(np.isfinite(I_cl[iep])==True)[0]
+            ind.append(i)
+        r       = np.array(list(set.intersection(*map(set,ind))),dtype=int)
+        r       = np.sort(np.unique(r))
+        I_cl    = I_cl[:,r]
+        W_cl    = W_cl[r]
+        nep,npix = I_cl.shape
+        #ind   = []
+        #for iep in range(nep):
+        #    i = np.where(I_cl[iep]>=0.0)[0]
+        #    ind.append(i)
+        #r       = np.array(list(set.intersection(*map(set,ind))),dtype=int)
+        #r       = np.sort(np.unique(r))
+        #I_cl    = I_cl[:,r]
+        #W_cl    = W_cl[r]
+    else:
+        print("ORDER",O.number,"(",O.W_mean,"nm) discarded (0 pts remaining)")
+        print("DISCARDED\n")
+        ind_rem.append(nn)
+        txt = str(O.number) + "   --\n"
+        file.write(txt)
 
     ### If the order does not contain enough points, it is discarded
     if len(W_cl) < Npt_lim:
+
+
         print("ORDER",O.number,"(",O.W_mean,"nm) discarded (",len(W_cl)," pts remaining)")
         print("DISCARDED\n")
         ind_rem.append(nn)
         txt = str(O.number) + "   --\n"
         file.write(txt)
-        plt.show()
     else:
         print(len(O.W_raw)-len(W_cl),"pts removed from order",O.number,"(",O.W_mean,"nm) -- OK")
+
+        nep,npix  = I_cl.shape
+        if plot:
+            fig,axes = plt.subplots(2,1,figsize=(8,4))
+            wmin,wmax = W_cl.min(),W_cl.max()
+            dw = np.average(W_cl[1:]-W_cl[:-1])
+            extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
+            xlabel = 'wavelength (nm)'
+            mp1=axes[0].imshow(I_cl, extent=extent, interpolation='nearest', aspect='auto')
+            fig.colorbar(mp1,ax=axes[0])
+            axes[0].set_title('Order {}'.format(O.number))
 
         if align:
             # should move this before masking low flux
@@ -338,19 +351,20 @@ for nn in range(nord):
                     normspec = test_flux/np.max(test_flux)
                     curcall = 0
                     residrms = 1
-                    numcall = 30
+                    numcall = 10
                     while ((curcall < numcall) and (residrms > maxrms)):
                         #print('On iteration {} of {}'.format(curcall,numcall))
+                        #with warnings.simplefilter('ignore',np.RankWarning):
                         z,mask,residrms,test_wlens,normspec = O.fit_blaze(test_wlens, normspec, maxrms,
-                                         numcalls=50, curcall=curcall,verbose=False,showplot=False)
+                                         numcalls=numcall, curcall=curcall,verbose=False,showplot=False)
                         #mask = ~a
                         curcall +=1
-                    wl = WW
+                    wl = W_cl
                     cfit = np.poly1d(z)
-                    plt.plot(wl,test_flux/np.max(test_flux))
-                    plt.plot(wl,cfit(wl))
-                    plt.title(iep)
-                    plt.show()
+                    #plt.plot(wl,test_flux/np.max(test_flux))
+                    #plt.plot(wl,cfit(wl))
+                    #plt.title(iep)
+                    #plt.show()
                     blaze.append(cfit(wl))
                 I_cl = I_cl/blaze
 
@@ -421,23 +435,19 @@ for nn in range(nord):
                 l[ipix] = False
         W_sub = W_sub[l]
         I_sub = I_sub[:,l]
-        print(I_sub.shape)
+        print('after blaze {}'.format(I_sub.shape))
         ### END of STEP 1
-
+        print('after blaze {}'.format(np.isnan(I_sub.any())))
         ### STEP 2 -- NORMALISATION AND OUTLIER REMOVAL
-        if blaze:
+        if fitblaze:
             W_norm1,I_norm1 = W_sub,I_sub
         else:
             W_norm1,I_norm1 = O.normalize(W_sub,I_sub,N_med,sig_out,N_bor)
         ### Correct for bad pixels
 
         W_norm2,I_norm2 = O.filter_pixel(W_norm1,I_norm1,deg_px,sig_out)
-        print(np.std(I_norm2[0,1500:2500]))
-        plt.figure()
-        plt.plot(I_norm2[20])
-        plt.show()
         ### END of STEP 2
-
+        print('after normalisation {}'.format(np.isnan(I_norm2.any())))
         #plt.plot(I_norm2[2])
         ### STEP 3 -- DETREND WITH AIRMASS -- OPTIONAL
 
@@ -448,8 +458,7 @@ for nn in range(nord):
         ind_flag = np.sort(np.unique(np.concatenate(ind_flag)))
         I_norm2  = np.delete(I_norm2,ind_flag,axis=1)
         W_norm2  = np.delete(W_norm2,ind_flag)
-
-
+        print('after filters {}'.format(I_norm2.shape))
         if det_airmass:
             I_log           = np.log(I_norm2)
             #ind_flag = []
@@ -460,13 +469,16 @@ for nn in range(nord):
             #print(ind_flag)
             #I_log = np.delete(I_log,ind_flag,axis=1) # for now just delete these values
             #W_norm2 = np.delete(W_norm2,ind_flag)
+            print('after log {}'.format(np.isnan(I_log).any()))
+            #print(W_norm2)
+            #print(I_log)
             Il              = O.detrend_airmass(W_norm2,I_log,airmass,deg_airmass)
             O.I_fin         = np.exp(Il)
         else:
             O.I_fin         = I_norm2
             Il              = np.log(I_norm2)
         O.W_fin  = W_norm2
-
+        print('after airmass detrending {}'.format(O.I_fin.shape))
         ### Removing the NaNs in Il
         #ind   = []
         #for uu in range(len(Il)):
@@ -479,24 +491,43 @@ for nn in range(nord):
         #O.I_fin = O.I_fin[:,r]
         #ff      = Il
 
+        # remove NaNs
         ind_nan = []
         for uu in range(len(Il)):
-        	i = np.where(np.isnan(Il[uu]))[0]
-        	ind_nan.append(i)
+            i = np.where(np.isnan(Il[uu]))[0]
+            ind_nan.append(i)
         ind_nan = np.sort(np.unique(np.concatenate(ind_nan)))
         Il = np.delete(Il,ind_nan,axis=1)
         O.I_fin = np.delete(O.I_fin,ind_nan,axis=1)
         O.W_fin = np.delete(O.W_fin,ind_nan,axis=0)
+        print('after nan filtering {}'.format(O.I_fin.shape))
 
         if len(O.W_fin)-len(r) > 0: print(len(O.W_fin)-len(r),"points rejected")
 
         ### STEP 4 -- REMOVING CORRELATED NOISE -- PCA/AUTOENCODERS
         Il    = np.log(O.I_fin)
-        im = np.tile(np.nanmean(Il,axis=0),(len(phase),1))
-        ist = np.tile(np.nanstd(Il,axis=0),(len(phase),1))
-        ff = (Il-im)/ist
+        im  = np.nanmean(Il,axis=0)
+        ist = np.nanstd(Il,axis=0)
+        ff  = np.copy(Il)#(Il-im)/ist
 
-        XX    = np.where(np.isnan(O.I_fin[0]))[0]
+        ind_nan = []
+        for iep in range(len(ist)):
+            # FOR NOW, mask columns with zero standard deviation
+            if ist[iep]==0.:
+                ind_nan.append(iep)
+        ff  = np.delete(ff,ind_nan,axis=1)
+        im  = np.delete(im,ind_nan,axis=0)
+        ist = np.delete(ist,ind_nan,axis=0)
+        im  = np.tile(im,(len(ff),1))
+        ist = np.tile(ist,(len(ff),1))
+        O.I_fin = np.delete(O.I_fin,ind_nan,axis=1)
+        O.W_fin = np.delete(O.W_fin,ind_nan,axis=0)
+        ff  = (ff-im)/ist
+
+
+        #print('a:{}'.format(np.isnan(O.I_fin).any()))
+        XX    = np.where(np.isnan(O.I_fin))[0]
+        #print(XX)
         if len(XX) > 0:
             print("ORDER",O.number,"intractable: DISCARDED\n")
             ind_rem.append(nn)
@@ -525,6 +556,9 @@ for nn in range(nord):
             O.SNR_mes_pca = 1./np.std(O.I_pca[:,indw-N_px:indw+N_px],axis=1)
 
             if plot:
+                wmin,wmax = O.W_fin.min(),O.W_fin.max()
+                dw = np.average(O.W_fin[1:]-O.W_fin[:-1])
+                extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
                 mp2=axes[1].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto')
                 fig.colorbar(mp2,ax=axes[1])
                 axes[1].set_xlabel(xlabel)
