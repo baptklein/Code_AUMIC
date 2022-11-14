@@ -1003,3 +1003,39 @@ class Order:
         ### Nb of components: larger than 2*max highenvalue
         ncf   = len(np.where(var>thr*np.max(thres))[0])
         return ncf
+
+    def telluric_residual_sampling(self,W,I,wlcen=None):
+        """
+        sample the residuals of strong telluric lines post PCA, fit function
+        and apply to entire spectral matrix
+        --> Inputs:     - Order object
+                        - W:       Wavelength vector
+                        - I:       PCA-processed spectra
+                        - wlcen:   Optionally manually input wavelengths of the lines
+                                    to sample, if not O.I_atm is used
+
+        --> Outputs:    - self.I_red, self.W_red
+        """
+        nep,npix = I.shape
+        spec     = np.copy(I)
+        if wlcen is None:
+            # identify strong telluric line wavelengths using skycalc Models
+            tell_model = np.copy(O.I_atm)
+        # Building sampling vector
+        smpl = np.zeros(nep)
+        for wl in wlcen:
+            dwl = np.abs(wl-W)
+            iline = dwl < 0.1 # indices within proximity of line
+            for iep in range(nep):
+                arr = spec[iep].copy()
+                smpl[iep] += arr[iline].sum()
+        # De-trend all the data columns
+        spec += 1.0
+        for ipix in range(npix):
+            # fit polynomial in each pixel
+            cf = np.polyfit(smpl,spec[:,ipix],2)
+#           fit = cf[0]*smpl + cf[1]
+            fit = cf[0]*smpl**2 + cf[1]*smpl + cf[2]
+            spec[:,ipix] /= fit
+        spec -= 1.0
+        return spec

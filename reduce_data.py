@@ -548,7 +548,9 @@ for nn in range(nord):
 
                 print(n_com,"PCA components discarded")
 
-            #sys.exit()
+            # RESIDUAL SAMPLING OF DEEP TELLURIC LINES
+            #O.I_pca = O.telluric_residual_sampling(self,W,I) # currently wont work because no wlcen or identifying line code is included
+            
             ### ESTIMATES FINAL METRICS
             N_px          = 200
             indw          = np.argmin(np.abs(O.W_fin-O.W_fin.mean()))
