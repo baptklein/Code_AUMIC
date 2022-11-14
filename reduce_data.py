@@ -68,9 +68,9 @@ if instrument=='igrins' or instrument=='IGRINS':
         skycalc_wlens.append(d['wlens'])
 
 ### Injection parameters - optionally inject a planet model
-inject   = True
-inj_amp  = 3.
-inj_Kp   = 100. #km/s 83km/s true_data
+inject   = False
+inj_amp  = 1.
+inj_Kp   = 83. #km/s 83km/s true_data
 inj_vsys = 10.  #km/s -4.71 km/s true_data
 
 

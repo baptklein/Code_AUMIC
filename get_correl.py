@@ -54,7 +54,12 @@ if __name__ == "__main__":
         transit frames only")
     parser.add_argument("--noLS", action="store_true", default=False,\
         help="this option will turn off the LS shift/stretch of the out-of-transit ref spec \
-        in reduce_data.py"
+        in reduce_data.py")
+    parser.add_argument("--Kp-lim", nargs=2, type=float, default=[60.,105.],\
+        help="Indicate regions to exclude when computing the NOISE level from the correlation map")
+    parser.add_argument("--Vsys-lim", nargs=2, type=float, default=[-15.,15.],\
+        help="Indicate regions to exclude when computing the NOISE level from the correlation map,\
+        negative argument to be fed in quotes and with space")
 
 
 
@@ -86,6 +91,7 @@ if __name__ == "__main__":
 
     if args.inject:
         print("loading in spectra with injected signal...")
+        print("check input Kp-lim and Vsys-lim")
         data_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}_{}/".format(args.inj_amp,\
         args.inj_Kp,args.inj_vsys,sp)
         text = 'injection {}x'.format(int(args.inj_amp))
@@ -134,7 +140,7 @@ if __name__ == "__main__":
     if args.airmass:
         save_dir += 'airmass_deg{}/'.format(args.deg_airmass)
     if args.red_mode=='pca' or args.red_mode=='PCA':
-        save_dir+= 'PCA/'
+        save_dir += 'PCA/'
     if args.noLS:
         save_dir += 'noLS/'
     if simple:
@@ -159,7 +165,9 @@ if __name__ == "__main__":
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-
+    Kp_lim     = args.Kp_lim
+    Vsys_lim   = args.Vsys_lim
+    print(Kp_lim,Vsys_lim)
 
 
     Rs         = 261413.0   # Stellar radius [km]
@@ -226,7 +234,21 @@ if __name__ == "__main__":
             W_mod,T_depth = pickle.load(open(mod_file,'rb'))
             O.Wm     = W_mod
             O.Im     = T_depth
+
+        ### purge NaNs
+        l = np.ones_like(O.W_fin,'bool')
+        for ipix in range(len(O.I_pca[0])):
+            if np.isnan(O.I_pca[:,ipix]).any():
+                l[ipix] = False
+        O.W_fin = O.W_fin[l]
+        O.I_pca = O.I_pca[:,l]
+
+        #print('order {}'.format(O.number))
+        #print('nans? {}'.format(np.isnan(O.I_pca).any()))
+
         list_ord.append(O)
+
+
     print("DONE\n")
 
     ind_sel = []
@@ -290,9 +312,6 @@ if __name__ == "__main__":
             corr = compute_correlation(np.array(list_ord)[ind_sel],window,phase,Kp,Vsys,V_shift)
 
     #### Compute statistics and plot the map
-    # Indicate regions to exclude when computing the NOISE level from the correlation map
-    Kp_lim      = [50.0,100.0]   # Exclude this Kp range we
-    Vsys_lim    = [-15.,15.]
     snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr,Kp_lim,Vsys_lim)
     sig_fin     = np.sum(np.sum(corr,axis=3),axis=2)/snrmap_fin
 
