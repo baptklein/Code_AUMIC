@@ -61,7 +61,7 @@ if instrument=='igrins' or instrument=='IGRINS':
     file_list = sorted(glob.glob(skycalc_dir+'skycalc_models_AU_MIC_Gemini_South_frame*.npz'))
 
     skycalc_models = [] # will be in order: nep, ndet, npix
-    skycalc_wlens = [] # same as models
+    skycalc_wlens  = [] # same as models
     for ifile in range(len(file_list)):
         d = np.load(file_list[ifile],allow_pickle=True)
         skycalc_models.append(d['flux'])
@@ -101,6 +101,8 @@ npca        = np.array(2*np.ones(len(orders)),dtype=int)      ### Nb of removed 
 auto_tune   = True                             ### Automatic tuning of number of components based on white noise maps amplified by blaze
 thr_pca     = 1.0                   ### PCA comp removed if eigenvalue larger than thr_pca*max(eigenvalue_noise)
 
+sample_residuals = True  # optionally sample deep telluric residuals post PCA
+
 ### Parameters for masking
 fac       = 2.0 # factor of std at which to mask
 
@@ -138,6 +140,8 @@ if det_airmass:
     outroot += 'airmass_deg{}/'.format(deg_airmass)
 if mode_pca == "pca" or mode_pca == "PCA":
     outroot += "PCA/"
+if sample_residuals:
+    outroot += 'residual_sampling/'
 if not doLS:
     outroot += 'noLS/'
 nam_fin  = outroot+"reduced_1.pkl"
@@ -180,10 +184,13 @@ for nn in range(nord):
     O.W_mean = O.W_raw.mean()
     if instrument=='igrins' or instrument=='IGRINS':
         # currently don't have skycalc models for spirou
-        atm = []
+        atm  = []
+        watm = []
         for iep in range(len(O.I_raw)):
             atm.append(skycalc_models[iep][nn])
+            watm.append(skycalc_wlens[iep][nn])
         O.I_atm = np.array(atm)
+        O.W_atm = np.array(watm) # shape nep,npix but should be same in each ep
 
     list_ord.append(O)
 print("DONE\n")
@@ -275,7 +282,8 @@ for nn in range(nord):
 
         nep,npix  = I_cl.shape
         if plot:
-            fig,axes = plt.subplots(2,1,figsize=(8,4))
+            fig,axes = plt.subplots(3,1,figsize=(8,8))
+            #fig,axes = plt.subplots(2,1,figsize=(8,4))
             wmin,wmax = W_cl.min(),W_cl.max()
             dw = np.average(W_cl[1:]-W_cl[:-1])
             extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
@@ -548,9 +556,16 @@ for nn in range(nord):
 
                 print(n_com,"PCA components discarded")
 
+                if plot:
+                    wmin,wmax = O.W_fin.min(),O.W_fin.max()
+                    dw = np.average(O.W_fin[1:]-O.W_fin[:-1])
+                    extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
+                    mp2=axes[1].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto')
+                    fig.colorbar(mp2,ax=axes[1])
             # RESIDUAL SAMPLING OF DEEP TELLURIC LINES
-            #O.I_pca = O.telluric_residual_sampling(self,W,I) # currently wont work because no wlcen or identifying line code is included
-            
+            if sample_residuals:
+                O.I_pca = O.telluric_residual_sampling(O.W_fin,O.I_pca)
+
             ### ESTIMATES FINAL METRICS
             N_px          = 200
             indw          = np.argmin(np.abs(O.W_fin-O.W_fin.mean()))
@@ -561,9 +576,9 @@ for nn in range(nord):
                 wmin,wmax = O.W_fin.min(),O.W_fin.max()
                 dw = np.average(O.W_fin[1:]-O.W_fin[:-1])
                 extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
-                mp2=axes[1].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto')
-                fig.colorbar(mp2,ax=axes[1])
-                axes[1].set_xlabel(xlabel)
+                mp2=axes[2].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto')
+                fig.colorbar(mp2,ax=axes[2])
+                axes[2].set_xlabel(xlabel)
                 plt.tight_layout()
                 plt.savefig(outroot+"pca_reduced_order{}.png".format(O.number))
 

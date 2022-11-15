@@ -29,6 +29,7 @@ from scipy.optimize import minimize
 from sklearn.decomposition import PCA
 import glob
 from astropy.time import Time
+from scipy.signal import argrelextrema
 
 
 
@@ -1019,8 +1020,14 @@ class Order:
         nep,npix = I.shape
         spec     = np.copy(I)
         if wlcen is None:
+            print('no wavelengths supplied, identifying deep telluric wavelengths to sample')
             # identify strong telluric line wavelengths using skycalc Models
-            tell_model = np.copy(O.I_atm)
+            tell_model = np.copy(self.I_atm)
+            tell_wlens = np.copy(self.W_atm[0]) # should be same in each ep
+            tell_model = np.median(tell_model,axis=0) # take average over time
+            minima_idx = argrelextrema(tell_model,np.less) # find all minima
+            minima_idx = minima_idx[tell_model[minima_idx]<0.7] # filter deepest lines
+            wlcen      = tell_wlens[minima_idx]
         # Building sampling vector
         smpl = np.zeros(nep)
         for wl in wlcen:
