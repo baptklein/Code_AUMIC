@@ -37,6 +37,8 @@ if __name__ == "__main__":
         help="use the airmass-detrended spectra")
     parser.add_argument("--deg-airmass", type=int, default=int(2),\
         help="degree of airmass-detrending")
+    parser.add_argument("--residual-sampling", action='store_true', default=False,\
+        help="residual sampling post PCA")
     parser.add_argument("--inject", action="store_true", default=False,\
         help="if true, use spectra with injected signal")
     parser.add_argument("--inj-Kp", type=float, default=0.0, \
@@ -104,6 +106,8 @@ if __name__ == "__main__":
         data_dir += 'airmass_deg{}/'.format(args.deg_airmass)
     if args.red_mode=='pca' or args.red_mode=='PCA':
         data_dir += 'PCA/'
+    if args.residual_sampling:
+        data_dir += 'residual_sampling/'
     if args.noLS:
         data_dir += 'noLS/'
 
@@ -141,6 +145,8 @@ if __name__ == "__main__":
         save_dir += 'airmass_deg{}/'.format(args.deg_airmass)
     if args.red_mode=='pca' or args.red_mode=='PCA':
         save_dir += 'PCA/'
+    if args.residual_sampling:
+        save_dir += 'residual_sampling/'
     if args.noLS:
         save_dir += 'noLS/'
     if simple:
@@ -242,10 +248,6 @@ if __name__ == "__main__":
                 l[ipix] = False
         O.W_fin = O.W_fin[l]
         O.I_pca = O.I_pca[:,l]
-
-        #print('order {}'.format(O.number))
-        #print('nans? {}'.format(np.isnan(O.I_pca).any()))
-
         list_ord.append(O)
 
 

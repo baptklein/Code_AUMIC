@@ -554,6 +554,8 @@ def plot_spectrum_dispersion(lord,nam_fig,instrument):
     rms_drs_s  = np.zeros(len(lord))
     rms_pca    = np.zeros(len(lord))
     rms_pca_s  = np.zeros(len(lord))
+    rms_mask   = np.zeros(len(lord))
+    rms_mask_s = np.zeros(len(lord))
     wmean      = np.zeros(len(lord))
     LO         = np.zeros(len(lord),dtype=int)
 
@@ -562,12 +564,15 @@ def plot_spectrum_dispersion(lord,nam_fig,instrument):
         disp_mes       = 1./O.SNR_mes
         disp_drs       = 1./O.SNR
         disp_pca       = 1./O.SNR_mes_pca
+        disp_mask      = 1./O.SNR_mes_mask
         rms_sp[kk]     = np.mean(disp_mes)
         rms_sp_s[kk]   = np.std(disp_mes)
         rms_drs[kk]    = np.mean(disp_drs)
         rms_drs_s[kk]  = np.std(disp_drs)
         rms_pca[kk]    = np.mean(disp_pca)
         rms_pca_s[kk]  = np.std(disp_pca)
+        rms_mask[kk]   = np.mean(disp_mask)
+        rms_mask_s[kk] = np.std(disp_mask)
         wmean[kk]      = O.W_mean
         LO[kk]         = O.number
 
@@ -578,6 +583,7 @@ def plot_spectrum_dispersion(lord,nam_fig,instrument):
     ax.errorbar(LO,rms_sp,rms_sp_s,fmt="*",color="k",label="Reduced data",capsize=10.0,ms=10.)
     ax.errorbar(LO,rms_pca,rms_pca_s,fmt="^",color="g",label="After PCA",capsize=10.0,ms=7.5)
     ax.errorbar(LO,rms_drs,rms_drs_s,fmt="o",color="m",label="DRS",capsize=8.0)
+    ax.errorbar(LO,rms_mask,rms_mask_s,fmt="+",color="skyblue",label="Masked post PCA",capsize=10.0,ms=10.)
 
     ax.legend(ncol=2)
     ax2 = ax.twiny()
@@ -1025,9 +1031,20 @@ class Order:
             tell_model = np.copy(self.I_atm)
             tell_wlens = np.copy(self.W_atm[0]) # should be same in each ep
             tell_model = np.median(tell_model,axis=0) # take average over time
-            minima_idx = argrelextrema(tell_model,np.less) # find all minima
-            minima_idx = minima_idx[tell_model[minima_idx]<0.7] # filter deepest lines
-            wlcen      = tell_wlens[minima_idx]
+            minima_idx = argrelextrema(tell_model,np.less)[0] # find all minima
+            a          = (tell_model[minima_idx]<0.7)*(tell_model[minima_idx]>0.1)
+            select     = minima_idx[a] # filter deepest lines
+            if len(minima_idx)<2:
+                a      = (tell_model[minima_idx]<0.9)*(tell_model[minima_idx]>0.1)
+                select = minima_idx[a]
+            wlcen      = tell_wlens[select]
+            #print(wlcen)
+            #plt.figure(figsize=(20,8))
+            #plt.plot(tell_wlens,tell_model,'r.-')
+            #for wl in wlcen:
+            #    plt.axvline(wl)
+            #plt.show()
+
         # Building sampling vector
         smpl = np.zeros(nep)
         for wl in wlcen:
@@ -1037,12 +1054,42 @@ class Order:
                 arr = spec[iep].copy()
                 smpl[iep] += arr[iline].sum()
         # De-trend all the data columns
-        spec += 1.0
-        for ipix in range(npix):
-            # fit polynomial in each pixel
-            cf = np.polyfit(smpl,spec[:,ipix],2)
-#           fit = cf[0]*smpl + cf[1]
-            fit = cf[0]*smpl**2 + cf[1]*smpl + cf[2]
-            spec[:,ipix] /= fit
-        spec -= 1.0
+        # check strong tellurics found
+        if (smpl==0.).all():
+            # don't perform residual sampling
+            print('no strong lines sampled')
+        else:
+            spec += 1.0
+            for ipix in range(npix):
+                # fit polynomial in each pixel
+                cf = np.polyfit(smpl,spec[:,ipix],2)
+    #           fit = cf[0]*smpl + cf[1]
+                fit = cf[0]*smpl**2 + cf[1]*smpl + cf[2]
+                spec[:,ipix] /= fit
+            spec -= 1.0
         return spec
+
+    def hipass_filter(self,W,I):
+        spec = I.copy() + 1
+        nep,npix = spec.shape
+        mask = np.zeros_like(spec,'bool')
+        l = np.isfinite(spec) == False
+        mask[l] = 1
+        thre = 2.0
+        rms = np.std(spec, axis=0)
+        xx = np.arange(npix)
+    #    yy = np.arange(nf)
+        # Clipping data at 'thre' times the r.m.s.
+        ino = rms > thre*np.nanmedian(rms)
+        mask[:,ino] = 1
+        # Do filtering in spectral direction
+        for iep in range(nep):
+            arr = spec[iep,].copy()
+            mask_arr = mask[iep,]
+            iok = (mask_arr == 0) * np.isfinite(arr)
+            cf = np.polyfit(xx[iok],arr[iok],2)
+            fit = cf[0]*xx**2 + cf[1]*xx + cf[2]
+            spec[iep,] /= fit
+
+        spec -= 1.0
+        return spec, mask

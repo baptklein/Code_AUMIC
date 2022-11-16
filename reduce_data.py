@@ -69,18 +69,18 @@ if instrument=='igrins' or instrument=='IGRINS':
 
 ### Injection parameters - optionally inject a planet model
 inject   = False
-inj_amp  = 1.
+inj_amp  = 3.
 inj_Kp   = 83. #km/s 83km/s true_data
-inj_vsys = 10.  #km/s -4.71 km/s true_data
+inj_vsys = 5.  #km/s -4.71 km/s true_data
 
 
 ### Data reduction parameters
 align    = False      # optionally align the spectra
 fitblaze = True       # optionally fit a blaze function to IGRINS spectra
-dep_min  = 0.6        # remove all data when telluric relative absorption < 1 - dep_min
-thres_up = 0.03       # Remove the line until reaching 1-thres_up
+dep_min  = 0.7        # remove all data when telluric relative absorption < 1 - dep_min
+thres_up = 0.1       # Remove the line until reaching 1-thres_up
 Npt_lim  = 200       # If the order contains less than Npt_lim points, it is discarded from the analysis
-doLS     = True      # perform stretch/shift of reference stellar out-of-transit mean spectrum to each observed spectrum (ATM only turned off for spirou)
+doLS     = False      # perform stretch/shift of reference stellar out-of-transit mean spectrum to each observed spectrum (ATM only turned off for spirou)
 
 ### Interpolation parameters
 sig_g    = 1.0                         ### STD of one SPIRou px in km/s
@@ -101,10 +101,19 @@ npca        = np.array(2*np.ones(len(orders)),dtype=int)      ### Nb of removed 
 auto_tune   = True                             ### Automatic tuning of number of components based on white noise maps amplified by blaze
 thr_pca     = 1.0                   ### PCA comp removed if eigenvalue larger than thr_pca*max(eigenvalue_noise)
 
+# post-processing
 sample_residuals = True  # optionally sample deep telluric residuals post PCA
+do_hipass        = False
+
+if sample_residuals and instrument=='spirou':
+    print('currently cannot use sample_residuals as there are no skycalc models for spirou')
+    sample_residuals = False
+if fitblaze and instrument=='spirou':
+    print('fitblaze not set up for spirou')
+    fitblaze = False
 
 ### Parameters for masking
-fac       = 2.0 # factor of std at which to mask
+fac       = 1.8 # factor of std at which to mask
 
 if inject:
     outroot += 'inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}'.format(inj_amp,inj_Kp,inj_vsys)
@@ -142,6 +151,8 @@ if mode_pca == "pca" or mode_pca == "PCA":
     outroot += "PCA/"
 if sample_residuals:
     outroot += 'residual_sampling/'
+if do_hipass:
+    outroot += 'hipass/'
 if not doLS:
     outroot += 'noLS/'
 nam_fin  = outroot+"reduced_1.pkl"
@@ -216,7 +227,7 @@ for nn in range(nord):
     O         = list_ord[nn]
     print("ORDER",O.number)
     print(O.W_mean)
-    if nn==0:
+    if nn==0 and instrument=='igrins':
         print('discard first order')
         ind_rem.append(nn)
         txt = str(O.number) + "   --\n"
@@ -282,7 +293,10 @@ for nn in range(nord):
 
         nep,npix  = I_cl.shape
         if plot:
-            fig,axes = plt.subplots(3,1,figsize=(8,8))
+            if sample_residuals: nax = 3
+            elif do_hipass: nax = 3
+            else: nax = 2
+            fig,axes = plt.subplots(nax,1,figsize=(8,8))
             #fig,axes = plt.subplots(2,1,figsize=(8,4))
             wmin,wmax = W_cl.min(),W_cl.max()
             dw = np.average(W_cl[1:]-W_cl[:-1])
@@ -560,11 +574,20 @@ for nn in range(nord):
                     wmin,wmax = O.W_fin.min(),O.W_fin.max()
                     dw = np.average(O.W_fin[1:]-O.W_fin[:-1])
                     extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
-                    mp2=axes[1].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto')
+                    mp2=axes[1].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto',vmin=-0.01,vmax=0.01)
                     fig.colorbar(mp2,ax=axes[1])
+                    if not sample_residuals or not do_hipass:
+                        axes[1].set_xlabel(xlabel)
+                        plt.tight_layout()
+                        plt.savefig(outroot+"pca_reduced_order{}.png".format(O.number))
+
             # RESIDUAL SAMPLING OF DEEP TELLURIC LINES
             if sample_residuals:
                 O.I_pca = O.telluric_residual_sampling(O.W_fin,O.I_pca)
+            if do_hipass:
+                O.I_pca,mask = O.hipass_filter(O.W_fin,O.I_pca)
+                # could apply mask to the data
+                # for now dont
 
             ### ESTIMATES FINAL METRICS
             N_px          = 200
@@ -572,28 +595,39 @@ for nn in range(nord):
             O.SNR_mes     = 1./np.std(O.I_fin[:,indw-N_px:indw+N_px],axis=1)
             O.SNR_mes_pca = 1./np.std(O.I_pca[:,indw-N_px:indw+N_px],axis=1)
 
-            if plot:
+            # mask strong lines
+            #if instrument=='igrins' or instrument=='IGRINS':
+            #    O.W_fin,O.I_pca =  O.remove_tellurics(dep_min,thres_up)  ### Need a telluric spectrum
+            #    if len(O.W_fin)==0:
+            #        print("ORDER",O.number,"(",O.W_mean,"nm) discarded (0 pts remaining)")
+            #        print("DISCARDED\n")
+            #        ind_rem.append(nn)
+            #        txt = str(O.number) + "   --\n"
+            #        file.write(txt)
+            #        continue
+
+            if (plot and sample_residuals) or (plot and do_hipass):
                 wmin,wmax = O.W_fin.min(),O.W_fin.max()
                 dw = np.average(O.W_fin[1:]-O.W_fin[:-1])
                 extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
-                mp2=axes[2].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto')
+                mp2=axes[2].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto',vmin=-0.01,vmax=0.01)
                 fig.colorbar(mp2,ax=axes[2])
                 axes[2].set_xlabel(xlabel)
                 plt.tight_layout()
                 plt.savefig(outroot+"pca_reduced_order{}.png".format(O.number))
 
-
-            ### POST-PCA MASKING OF NOISY COLUMNS
             if plot:
                 fig,axes = plt.subplots(2,1,figsize=(8,4))
                 wmin,wmax = W_cl.min(),W_cl.max()
                 dw = np.average(W_cl[1:]-W_cl[:-1])
                 extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
                 xlabel = 'wavelength (nm)'
-                mp1=axes[0].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto')
+                mp1=axes[0].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto',vmin=-0.01,vmax=0.01)
                 fig.colorbar(mp1,ax=axes[0])
                 axes[0].set_title('Order {}'.format(O.number))
 
+
+            ### POST-PCA MASKING OF NOISY COLUMNS
             # identify residual tellurics
             std       = np.std(O.I_pca,axis=0)
             thr       = fac*np.nanmedian(std)
@@ -604,9 +638,11 @@ for nn in range(nord):
             O.I_mask  = I_mask
             mk        = np.isnan(I_mask)
             O.mask    = mk
+            O.SNR_mes_mask = 1./np.nanstd(O.I_mask[:,indw-N_px:indw+N_px],axis=1)
+
 
             if plot:
-                mp2=axes[1].imshow(O.I_mask, extent=extent, interpolation='nearest', aspect='auto')
+                mp2=axes[1].imshow(O.I_mask, extent=extent, interpolation='nearest', aspect='auto',vmin=-0.01,vmax=0.01)
                 fig.colorbar(mp2,ax=axes[1])
                 axes[1].set_xlabel(xlabel)
                 plt.tight_layout()
@@ -617,6 +653,7 @@ for nn in range(nord):
         if inject:
             txt += "injected model found at: {}, Kp: {}, vsys: {}, inj-amp: {}".format(mod_file,inj_Kp,inj_vsys,inj_amp)
         file.write(txt)
+        print('\n')
 
 print("DATA REDUCTION DONE\n")
 file.close()
