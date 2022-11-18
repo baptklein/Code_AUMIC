@@ -36,10 +36,10 @@ ld_mod   = "nonlinear"     #Limb-darkening model ["nonlinear", "quadratic", "lin
 ld_coef  = [1.2783,-1.5039,1.2042,-0.3833] # Claret et al. 2011
 
 ### Stellar radial velocity info
-Ks        = 0.006    #RV semi-amplitude of the star orbital motion due to planet [km/s]
-V0        = -4.71    #Stellar systemic velocity [km/s] (SIMBAD)
+Ks       = 0.006    #RV semi-amplitude of the star orbital motion due to planet [km/s]
+V0       = -4.71    #Stellar systemic velocity [km/s] (SIMBAD)
 
-
+ncut     = 100 # minimum number of datapoints for order to be kept
 
 c0 = Constants().c0
 
@@ -99,22 +99,40 @@ print("DONE")
 ind_sort = np.argsort(wlens.mean(axis=1))
 wlens    = wlens[ind_sort]
 data_RAW = data_RAW[ind_sort]
-dnorm    = np.nanmax(data_RAW,axis=2)
+### Remove negatives and apply sigma clipping
+### Then normalise
+ndet,nep,npix = data_RAW.shape
 data_fin = np.zeros_like(data_RAW)
-for zz in range(len(data_RAW)):
-    for yy in range(len(data_RAW[0])):
-        data_fin[zz,yy] = data_RAW[zz,yy]/dnorm[zz,yy]
+for idet in range(ndet):
+    for iep in range(nep):
+        a = np.where(data_RAW[idet,iep]<0.)[0]
+        data_RAW[idet,iep,a] = np.nan
+        filt = sigma_clip(data_RAW[idet,iep],sigma=2.2,maxiters=5,masked=True)
+        indd = np.where(filt.mask)[0]
+        data_RAW[idet,iep,indd] = np.nan
+
+        l = np.isfinite(data_RAW[idet,iep])
+        top = np.argsort(data_RAW[idet,iep][l])[-10:]
+        m = np.average(data_RAW[idet,iep][l][top]) # average the max value
+        data_fin[idet,iep] = data_RAW[idet,iep]/m
+### Normalise
+#dnorm    = np.nanmax(data_RAW,axis=2)
+
+#for zz in range(len(data_RAW)):
+#    for yy in range(len(data_RAW[0])):
+#        data_fin[zz,yy] = data_RAW[zz,yy]/dnorm[zz,yy]
 data_RAW = data_fin
 data_var = data_var[ind_sort]
 data_sn  = data_sn[ind_sort]
 SN       = np.nanmean(data_sn,axis=2)
 nord     = len(SN)
-
+orders   = np.arange(nord)
 
 
 
 ### Remove NaNs
 I_corr,W_corr,var_corr = [],[],[]
+ind_rem = []
 for zz in range(nord):
 
     I_bl  = data_RAW[zz]
@@ -134,11 +152,20 @@ for zz in range(nord):
         I_ini.append(I_bl[nn,r])
 
     print("Order",zz,":",len(r))
+    if len(W_ini)<ncut:
+        print('discard order')
+        ind_rem.append(zz)
+        continue
+    else:
+        I_corr.append(np.array(I_ini,dtype=float))
+        W_corr.append(np.array(W_ini,dtype=float))
 
-    I_corr.append(np.array(I_ini,dtype=float))
-    W_corr.append(np.array(W_ini,dtype=float))
-
-
+orders   = np.delete(orders,ind_rem,axis=0)
+wlens    = np.delete(wlens,ind_rem,axis=0)
+data_RAW = np.delete(data_RAW,ind_rem,axis=0)
+data_sn  = np.delete(data_sn,ind_rem,axis=0)
+SN       = np.delete(SN,ind_rem,axis=0)
+print(len(orders))
 
 for nn in range(len(W_corr)):
     WW   = W_corr[nn]
@@ -194,8 +221,6 @@ if plot:
 
 
 
-
-orders   = np.arange(len(SN))
 savedata = (orders,W_corr,I_corr,np.zeros_like(data_RAW),np.zeros_like(data_RAW),time_JD,phase,window,vbary,V0+Vp,airms,SN)
 with open(name_fin, 'wb') as specfile:
     pickle.dump(savedata,specfile)

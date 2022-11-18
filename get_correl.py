@@ -39,6 +39,8 @@ if __name__ == "__main__":
         help="degree of airmass-detrending")
     parser.add_argument("--residual-sampling", action='store_true', default=False,\
         help="residual sampling post PCA")
+    parser.add_argument("--do-hipass", action='store_true', default=False,\
+        help="hipass filter post PCA")
     parser.add_argument("--inject", action="store_true", default=False,\
         help="if true, use spectra with injected signal")
     parser.add_argument("--inj-Kp", type=float, default=0.0, \
@@ -108,6 +110,8 @@ if __name__ == "__main__":
         data_dir += 'PCA/'
     if args.residual_sampling:
         data_dir += 'residual_sampling/'
+    if args.do_hipass:
+        data_dir += 'hipass/'
     if args.noLS:
         data_dir += 'noLS/'
 
@@ -147,6 +151,8 @@ if __name__ == "__main__":
         save_dir += 'PCA/'
     if args.residual_sampling:
         save_dir += 'residual_sampling/'
+    if args.do_hipass:
+        save_dir += 'hipass/'
     if args.noLS:
         save_dir += 'noLS/'
     if simple:

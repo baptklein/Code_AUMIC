@@ -1034,22 +1034,16 @@ class Order:
             minima_idx = argrelextrema(tell_model,np.less)[0] # find all minima
             a          = (tell_model[minima_idx]<0.7)*(tell_model[minima_idx]>0.1)
             select     = minima_idx[a] # filter deepest lines
-            if len(minima_idx)<2:
-                a      = (tell_model[minima_idx]<0.9)*(tell_model[minima_idx]>0.1)
+            if len(select)<2:
+                a      = (tell_model[minima_idx]<0.95)*(tell_model[minima_idx]>0.1)
                 select = minima_idx[a]
             wlcen      = tell_wlens[select]
-            #print(wlcen)
-            #plt.figure(figsize=(20,8))
-            #plt.plot(tell_wlens,tell_model,'r.-')
-            #for wl in wlcen:
-            #    plt.axvline(wl)
-            #plt.show()
 
         # Building sampling vector
         smpl = np.zeros(nep)
         for wl in wlcen:
             dwl = np.abs(wl-W)
-            iline = dwl < 0.1 # indices within proximity of line
+            iline = dwl < 0.15 # indices within proximity of line
             for iep in range(nep):
                 arr = spec[iep].copy()
                 smpl[iep] += arr[iline].sum()

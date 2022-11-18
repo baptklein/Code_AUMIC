@@ -22,7 +22,7 @@ import warnings
 warnings.simplefilter('ignore',np.RankWarning)
 ############################# VERSION ADAPTED FOR IGRINS DATA
 outroot    = 'Input_data/'
-instrument = 'igrins' # models do not extend far enough for igrins
+instrument = 'spirou' # models do not extend far enough for igrins
 c0         = Constants().c0
 
 if instrument == 'IGRINS' or instrument == 'igrins':
@@ -68,7 +68,7 @@ if instrument=='igrins' or instrument=='IGRINS':
         skycalc_wlens.append(d['wlens'])
 
 ### Injection parameters - optionally inject a planet model
-inject   = False
+inject   = True
 inj_amp  = 3.
 inj_Kp   = 83. #km/s 83km/s true_data
 inj_vsys = 5.  #km/s -4.71 km/s true_data
@@ -102,8 +102,8 @@ auto_tune   = True                             ### Automatic tuning of number of
 thr_pca     = 1.0                   ### PCA comp removed if eigenvalue larger than thr_pca*max(eigenvalue_noise)
 
 # post-processing
-sample_residuals = True  # optionally sample deep telluric residuals post PCA
-do_hipass        = False
+sample_residuals = False  # optionally sample deep telluric residuals post PCA
+do_hipass        = True
 
 if sample_residuals and instrument=='spirou':
     print('currently cannot use sample_residuals as there are no skycalc models for spirou')
@@ -165,7 +165,7 @@ ind_rem     = []
 V_corr      = vstar - berv                  ### Geocentric-to-stellar rest frame correction
 n_ini,n_end = get_transit_dates(window)     ### Get transits start and end indices
 
-
+file = open(nam_info,"w")
 ### Create order objects
 nord     = len(orders)
 print(nord,"orders detected")
@@ -212,7 +212,7 @@ NCF         = np.zeros(nord)
 
 #### Main reduction
 print("START DATA REDUCTION")
-file = open(nam_info,"w")
+
 plot_all_orders = True
 if not plot_all_orders:
     plot_ord = 10 # pick an example order to plot
@@ -390,35 +390,31 @@ for nn in range(nord):
                     blaze.append(cfit(wl))
                 I_cl = I_cl/blaze
 
+            if not do_hipass and not sample_residuals:
+                I_sub1 = I_cl
+            elif O.number in [11,19,45,47]:
+                I_sub1 = I_cl
+                print('skip median out of transit for this order')
+            else:
+                ### Compute mean spectrum in the stellar rest frame
+                V_cl      = c0*(W_cl/O.W_mean-1.)
+                I_bary    = move_spec(V_cl,I_cl,V_corr,sig_g)  ## Shift to stellar rest frame
+                I_med     = np.median(np.concatenate((I_bary[:n_ini],I_bary[n_end:]),axis=0),axis=0) ## Compute median out-of-transit
+                I_med_geo = move_spec(V_cl,np.array([I_med]),-1.*V_corr,sig_g)  ## Move back ref spectrum to Geocentric frame
+                I_sub1    = np.zeros(I_cl.shape)
 
-
-            ### First compute reference spectrum in the Geocentric frame
-            #I_med2  = np.median(np.concatenate((I_cl[:n_ini],I_cl[n_end:]),axis=0),axis=0)
-            #I_sub2  = np.zeros(I_cl.shape)
-
-            # for each epoch
-            #for kk in range(len(I_cl)):
-            #    X          = np.array([np.ones(len(I_med2)),I_med2],dtype=float).T
-            #    p,pe       = LS(X,I_cl[kk])
-            #    Ip         = np.dot(X,p)
-            #    I_sub2[kk] = I_cl[kk]/Ip
-            ### Now mean spectrum in the stellar rest frame
-            #V_cl      = c0*(W_cl/O.W_mean-1.)
-            #I_bary    = move_spec(V_cl,I_sub2,V_corr,sig_g)  ## Shift to stellar rest frame
-            #I_med     = np.median(np.concatenate((I_bary[:n_ini],I_bary[n_end:]),axis=0),axis=0) ## Compute median out-of-transit
-            #I_med_geo = move_spec(V_cl,np.array([I_med]),-1.*V_corr,sig_g)  ## Move back ref spectrum to Geocentric frame
-            #I_sub1    = np.zeros(I_sub2.shape)
-
-            # a stretch/shift of the stellar ref spec to each spectrum (then remove)
-            #for kk in range(len(I_cl)):
-            #    X          = np.array([np.ones(len(I_med_geo[kk])),I_med_geo[kk]],dtype=float).T
-            #    p,pe       = LS(X,I_sub2[kk])
-            #    Ip         = np.dot(X,p)
-            #    I_sub1[kk] = I_sub2[kk]/Ip
-
+                if doLS:
+                    # a stretch/shift of the stellar ref spec to each spectrum (then remove)
+                    for kk in range(len(I_cl)):
+                        X          = np.array([np.ones(len(I_med_geo[kk])),I_med_geo[kk]],dtype=float).T
+                        p,pe       = LS(X,I_sub2[kk])
+                        Ip         = np.dot(X,p)
+                        I_sub1[kk] = I_sub2[kk]/Ip
+                else:
+                    I_sub1 = I_cl/I_med_geo
             ### Remove extremities to avoid interpolation errors
             W_sub = W_cl[N_bor:-N_bor]
-            I_sub = I_cl[:,N_bor:-N_bor]#I_sub1[:,N_bor:-N_bor]
+            I_sub = I_sub1[:,N_bor:-N_bor]#I_cl[:,N_bor:-N_bor]
 
         elif instrument =='SPIROU' or instrument=='spirou':
             ### If the order is kept - Remove high-SNR(?) out-of-transit reference spectrum
@@ -546,6 +542,8 @@ for nn in range(nord):
         O.W_fin = np.delete(O.W_fin,ind_nan,axis=0)
         ff  = (ff-im)/ist
 
+        N_px          = 200
+        indw          = np.argmin(np.abs(O.W_fin-O.W_fin.mean()))
 
         #print('a:{}'.format(np.isnan(O.I_fin).any()))
         XX    = np.where(np.isnan(O.I_fin))[0]
@@ -566,7 +564,31 @@ for nn in range(nord):
                 principalComponents = pca.transform(x_pca)
                 x_pca_projected = pca.inverse_transform(principalComponents)
                 O.I_pca = np.exp((ff-x_pca_projected)*ist+im) - 1.0
+                # check if within range of DRS dispersion
+                disp = np.mean(np.std(O.I_pca[:,indw-N_px:indw+N_px],axis=1))
+                drs_disp = 1./O.SNR
+                drs_disp_mean = np.mean(drs_disp)
+                drs_disp_std = np.std(drs_disp)
+                while disp>drs_disp_mean+2*drs_disp_std:
+                    # if dispersion is greater than 2 errorbars from drs
+                    # add a principal component
+                    n_com += 1
+                    if n_com>10:
+                        print('do not use more than 10 PCs')
+                        break
+                    else:
+                        print('adding 1 more PC')
+                        pca   = PCA(n_components=n_com)
+                        x_pca = np.float32(ff)
+                        pca.fit(x_pca)
+                        principalComponents = pca.transform(x_pca)
+                        x_pca_projected = pca.inverse_transform(principalComponents)
+                        O.I_pca = np.exp((ff-x_pca_projected)*ist+im) - 1.0
+                        disp = np.mean(np.std(O.I_pca[:,indw-N_px:indw+N_px],axis=1))
+
+
                 NCF[nn] = n_com
+
 
                 print(n_com,"PCA components discarded")
 
@@ -580,7 +602,7 @@ for nn in range(nord):
                         axes[1].set_xlabel(xlabel)
                         plt.tight_layout()
                         plt.savefig(outroot+"pca_reduced_order{}.png".format(O.number))
-
+                        plt.close()
             # RESIDUAL SAMPLING OF DEEP TELLURIC LINES
             if sample_residuals:
                 O.I_pca = O.telluric_residual_sampling(O.W_fin,O.I_pca)
@@ -590,8 +612,6 @@ for nn in range(nord):
                 # for now dont
 
             ### ESTIMATES FINAL METRICS
-            N_px          = 200
-            indw          = np.argmin(np.abs(O.W_fin-O.W_fin.mean()))
             O.SNR_mes     = 1./np.std(O.I_fin[:,indw-N_px:indw+N_px],axis=1)
             O.SNR_mes_pca = 1./np.std(O.I_pca[:,indw-N_px:indw+N_px],axis=1)
 
@@ -615,6 +635,7 @@ for nn in range(nord):
                 axes[2].set_xlabel(xlabel)
                 plt.tight_layout()
                 plt.savefig(outroot+"pca_reduced_order{}.png".format(O.number))
+                plt.close()
 
             if plot:
                 fig,axes = plt.subplots(2,1,figsize=(8,4))
@@ -635,6 +656,9 @@ for nn in range(nord):
             l         = np.tile(l[None,:],(nep,1))
             I_mask    = np.copy(O.I_pca)
             I_mask[l] = np.nan
+            # additional masking
+            #std       = np.nanstd(I_mask)
+            #I_mask[np.abs(I_mask)>3.*std] = np.nan
             O.I_mask  = I_mask
             mk        = np.isnan(I_mask)
             O.mask    = mk
