@@ -194,15 +194,14 @@ for nn in range(nord):
     #O.I_atm  = np.array(Ia[nn],dtype=float)
     O.SNR    = np.array(SN[nn],dtype=float)
     O.W_mean = O.W_raw.mean()
-    if instrument=='igrins' or instrument=='IGRINS':
-        # currently don't have skycalc models for spirou
-        atm  = []
-        watm = []
-        for iep in range(len(O.I_raw)):
-            atm.append(skycalc_models[iep][nn])
-            watm.append(skycalc_wlens[iep][nn])
-        O.I_atm = np.array(atm)
-        O.W_atm = np.array(watm) # shape nep,npix but should be same in each ep
+    # skycalc models for telluric reference
+    atm  = []
+    watm = []
+    for iep in range(len(O.I_raw)):
+        atm.append(skycalc_models[iep][nn])
+        watm.append(skycalc_wlens[iep][nn])
+    O.I_atm = np.array(atm)
+    O.W_atm = np.array(watm) # shape nep,npix but should be same in each ep
 
     list_ord.append(O)
 print("DONE\n")
