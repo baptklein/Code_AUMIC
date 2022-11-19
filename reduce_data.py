@@ -55,17 +55,21 @@ with open(filename,'rb') as specfile:
     A = pickle.load(specfile)
 orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 
-if instrument=='igrins' or instrument=='IGRINS':
-    # I should save these in Ia under read_data.py
-    skycalc_dir = outroot+'skycalc_models/'
-    file_list = sorted(glob.glob(skycalc_dir+'skycalc_models_AU_MIC_Gemini_South_frame*.npz'))
 
-    skycalc_models = [] # will be in order: nep, ndet, npix
-    skycalc_wlens  = [] # same as models
-    for ifile in range(len(file_list)):
-        d = np.load(file_list[ifile],allow_pickle=True)
-        skycalc_models.append(d['flux'])
-        skycalc_wlens.append(d['wlens'])
+# I should save these in Ia under read_data.py
+skycalc_dir = outroot+'skycalc_models/'
+if instrument=='igrins' or instrument=='IGRINS':
+    mod_add  = 'Gemini_South'
+elif instrument=='spirou' or instrument=='SPIROU':
+    mod_add  = 'Canada-France-Hawaii_Telescope'
+file_list = sorted(glob.glob(skycalc_dir+'skycalc_models_AU_MIC_{}_frame*.npz'.format(mod_add)))
+
+skycalc_models = [] # will be in order: nep, ndet, npix
+skycalc_wlens  = [] # same as models
+for ifile in range(len(file_list)):
+    d = np.load(file_list[ifile],allow_pickle=True)
+    skycalc_models.append(d['flux'])
+    skycalc_wlens.append(d['wlens'])
 
 ### Injection parameters - optionally inject a planet model
 inject   = True
@@ -105,9 +109,6 @@ thr_pca     = 1.0                   ### PCA comp removed if eigenvalue larger th
 sample_residuals = False  # optionally sample deep telluric residuals post PCA
 do_hipass        = True
 
-if sample_residuals and instrument=='spirou':
-    print('currently cannot use sample_residuals as there are no skycalc models for spirou')
-    sample_residuals = False
 if fitblaze and instrument=='spirou':
     print('fitblaze not set up for spirou')
     fitblaze = False
