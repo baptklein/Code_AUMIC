@@ -138,6 +138,8 @@ if __name__ == "__main__":
     # results file
     save_dir      = 'xcorr_result/'+'{}/'.format(instrument)+'{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
     simple        = False # turn on (true)/off simple pearsonr cross-correlation
+    plot_all_orders = True
+
     if args.inject:
         save_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}_{}/".format(args.inj_amp,\
         args.inj_Kp,args.inj_vsys,sp)
@@ -317,12 +319,12 @@ if __name__ == "__main__":
             exit()
             #----
         else:
-            corr = compute_correlation(np.array(list_ord)[ind_sel],window,phase,Kp,Vsys,V_shift)
+            # compute correlation for all orders, save, then later combine chosen orders for plots
+            corr = compute_correlation(np.array(list_ord),window,phase,Kp,Vsys,V_shift)
 
     #### Compute statistics and plot the map
     snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr,Kp_lim,Vsys_lim)
-    sig_fin     = np.sum(np.sum(corr,axis=3),axis=2)/snrmap_fin
-
+    sig_fin     = np.sum(np.sum(corr[:,:,ind_sel,:],axis=3),axis=2)/snrmap_fin # axis 3 is time, axis 2 is order # does this line still work for one order?
 
 
     ### Plot correlation + 1D cut
@@ -352,4 +354,16 @@ if __name__ == "__main__":
         #V_cut = round(V_best,1)
         #K_cut = round(K_best,1)
     plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True,box=False,text=True,text_title='{} {} \n$K_p$ = {:.2f} km/s \n$V_s$ = {:.2f} km/s'.format(sp,text,K_cut,V_cut))
+    if plot_all_orders:
+        dir_ord = save_dir+'individual_orders/'
+        if args.masked: dir_ord += 'masked/'
+        if not os.path.exists(dir_ord):
+            os.makedirs(dir_ord)
+
+        for iord in range(len(list_ord)):
+            O         = list_ord[iord]
+            snmap_ord = get_snrmap(np.array(orders)[[iord]],Kp,Vsys,corr,Kp_lim,Vsys_lim)
+            sigma_ord = np.sum(corr[:,:,iord,:],axis=2)/snmap_ord
+            fig_ord   = dir_ord+'Kp_vsys_map_{}{}{}{}_ord{}_iord{}.png'.format(sp,al,mk,OOT,O.number,iord)
+            plot_correlation_map(Vsys,Kp,sigma_ord,fig_ord,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True,box=False,text=True,text_title='{} {} \n$K_p$ = {:.2f} km/s \n$V_s$ = {:.2f} km/s'.format(sp,text,K_cut,V_cut))
     #plot_correlation_map(Vsys,Kp,sn_map,nam_fig,K_cut,V_cut,cmap,sn_cutx,sn_cuty,20)

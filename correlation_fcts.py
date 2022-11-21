@@ -488,14 +488,15 @@ def plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_inj=0.0,K_inj=0.0,cmap="gist_h
 
 # -----------------------------------------------------------
 # Plot correlation/time map for a single order.
+# - file_dir: path to file
 # - filename: path to cross-correlation pkl result file (from get_correl.py)
 # - order: index of the order to plot
-# - vsys_cut: the systemic velocity to cut through the velocity map (km/s)
+# - vsys_cut: index of the systemic velocity to cut through the velocity map (km/s)
 # -----------------------------------------------------------
-def cc_time_plot(filename,order,vsys_cut):
+def cc_time_plot(file_dir,filename,order,vsys_cut):
     # Read in the cross-correlation result
-    print("Read data from",filename+'.pkl')
-    res_dir = 'xcorr_result/' + filename + '.pkl'
+    print("Read data from ",file_dir+filename+'.pkl')
+    res_dir = file_dir + filename + '.pkl'
     with open(res_dir,'rb') as ccfile:
         Vsys,Kp,corr,sn_map = pickle.load(ccfile)
     # corr is the result from compute_correlation(), ie just in-transit
@@ -507,16 +508,18 @@ def cc_time_plot(filename,order,vsys_cut):
         # sum over a range
         v1,v2 = vsys_cut
         res = np.sum(corr[:,v1:v2,order,:],axis=1)
+        vquote = '{}-{}'.format(Vsys[v1],Vsys[v2])
     else:
         vsys_cut = vsys_cut[0]
         res = corr[:,vsys_cut,order,:]
+        vquote = '{}'.format(Vsys[vsys_cut])
 
     fig     = plt.figure(figsize=(15,0.05*nep))
     extent  = (Kpmin - 0.5*dKp, Kpmax -0.5*dKp, nep-0.5, 0.5)
     plt.imshow(res,aspect='auto',interpolation='nearest',extent=extent)
     plt.xlabel('Kp (km/s)')
     plt.ylabel('Frame number (in transit!)')
-    plt.title('Model: ' +filename+', Order: {}'.format(order)+', Vsys_cut: {}'.format(vsys_cut))
+    plt.title('Model: ' +filename+', Order: {}'.format(order)+', Vsys_cut: {} km/s'.format(vquote))
     plt.colorbar()
-    plt.savefig('xcorr_result/' + filename + '_order{}.png'.format(order))
+    plt.savefig(file_dir + filename + '_order{}.png'.format(order))
     plt.close()
