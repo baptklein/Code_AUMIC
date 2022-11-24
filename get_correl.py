@@ -342,9 +342,7 @@ if __name__ == "__main__":
         print("DONE")
 
     #### Compute statistics and plot the map
-    print(ind_sel)
     snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr[:,:,ind_sel],Kp_lim,Vsys_lim)
-    print(snrmap_fin)
     sig_fin     = np.sum(np.sum(corr[:,:,ind_sel,:],axis=3),axis=2)/snrmap_fin # axis 3 is time, axis 2 is order # does this line still work for one order?
 
 
@@ -374,7 +372,6 @@ if __name__ == "__main__":
         #V_cut = round(V_best,1)
         #K_cut = round(K_best,1)
     plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True,box=False,text=True,text_title='{} {} \n$K_p$ = {:.2f} km/s \n$V_s$ = {:.2f} km/s'.format(sp,text,K_cut,V_cut))
-    plot_all_orders = False
     if plot_all_orders:
         dir_ord = save_dir+'individual_orders/'
         if args.masked: dir_ord += 'masked/'
@@ -383,7 +380,7 @@ if __name__ == "__main__":
 
         for iord in range(len(list_ord)):
             O         = list_ord[iord]
-            snmap_ord = get_snrmap(np.array(orders)[[iord]],Kp,Vsys,corr,Kp_lim,Vsys_lim)
+            snmap_ord = get_snrmap(np.array(orders)[[iord]],Kp,Vsys,corr[:,:,iord,:],Kp_lim,Vsys_lim)
             sigma_ord = np.sum(corr[:,:,iord,:],axis=2)/snmap_ord
             fig_ord   = dir_ord+'Kp_vsys_map_{}{}{}{}_ord{}_iord{}.png'.format(sp,al,mk,OOT,O.number,iord)
             plot_correlation_map(Vsys,Kp,sigma_ord,fig_ord,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True,box=False,text=True,text_title='{} {} \n$K_p$ = {:.2f} km/s \n$V_s$ = {:.2f} km/s'.format(sp,text,K_cut,V_cut))
