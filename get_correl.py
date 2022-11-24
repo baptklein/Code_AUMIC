@@ -29,6 +29,8 @@ if __name__ == "__main__":
     parser.add_argument("--aligned", action="store_true", default=False,\
         help="use the aligned, wavelength recalibrated spectral matrix, \
          (for IGRINS data)")
+    parser.add_argument("--StarRotator", action='store_true', default=False,\
+        help="use StarRotator models reduced data")
     parser.add_argument("--masked", action="store_true", default=False,\
         help="use the masked spectra")
     parser.add_argument("--blazed", action="store_true", default=False,\
@@ -52,7 +54,8 @@ if __name__ == "__main__":
     parser.add_argument("--select-orders", action="store_true", default=False,\
         help="select only certain orders, otherwise use all, follow with orders argument")
     parser.add_argument("--orders", nargs='+', default=[], type=int, \
-        help="name specific orders, options 32--79, just enter as integers with space between")
+        help="name specific orders (numbers not indices), options 32--79,\
+        just enter as integers with space between")
     parser.add_argument("--oot", action="store_true", default=False,\
         help="this option will reverse the transit window, and so cross-correlate with out of \
         transit frames only")
@@ -78,7 +81,7 @@ if __name__ == "__main__":
         instrument = 'spirou'
 
     # model files
-    species     = ['CH4'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -102,12 +105,16 @@ if __name__ == "__main__":
     else:
         data_dir += "true_data/"
         text = 'true data'
+    if args.StarRotator:
+        SRmod = 'phoenix' # or kurucz
+        data_dir += 'StarRotator_{}/'.format(SRmod)
     if args.blazed:
         data_dir += 'blazed/'
     if args.airmass:
         data_dir += 'airmass_deg{}/'.format(args.deg_airmass)
     if args.red_mode=='pca' or args.red_mode=='PCA':
         data_dir += 'PCA/'
+
     if args.residual_sampling:
         data_dir += 'residual_sampling/'
     if args.do_hipass:
@@ -145,6 +152,8 @@ if __name__ == "__main__":
         args.inj_Kp,args.inj_vsys,sp)
     else:
         save_dir += "true_data/"
+    if args.StarRotator:
+        save_dir += 'StarRotator_{}/'.format(SRmod)
     if args.blazed:
         save_dir += "blazed/"
     if args.airmass:
@@ -168,16 +177,20 @@ if __name__ == "__main__":
             print('selecting orders')
             select_orders = args.orders
             _orders = '_'.join(str(i) for i in select_orders)
-            save_dir += 'orders_{}/'.format(_orders)
             nam_res   = save_dir+'corr_Kp_vsys_{}{}{}{}.pkl'.format(sp,al,mk,OOT)
-            nam_fig   = save_dir+'Kp_vsys_map_{}{}{}{}.png'.format(sp,al,mk,OOT)
+            nam_res2  = save_dir+'orders_{}/snmap_{}{}{}{}.pkl'.format(_orders,sp,al,mk,OOT)
+            nam_fig   = save_dir+'orders_{}/Kp_vsys_map_{}{}{}{}.png'.format(_orders,sp,al,mk,OOT)
         else:
             sys.exit('specify orders to select if using select-orders argument')
     else:
         nam_res   = save_dir+'corr_Kp_vsys_{}{}{}{}.pkl'.format(sp,al,mk,OOT)
+        nam_res2  = save_dir+'snmap_{}{}{}{}.pkl'.format(sp,al,mk,OOT)
         nam_fig   = save_dir+'Kp_vsys_map_ALLorders_{}{}{}{}.png'.format(sp,al,mk,OOT)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
+    if args.select_orders:
+        if not os.path.exists(save_dir+'orders_{}/'.format(_orders)):
+            os.makedirs(save_dir+'orders_{}/'.format(_orders))
 
     Kp_lim     = args.Kp_lim
     Vsys_lim   = args.Vsys_lim
@@ -300,7 +313,7 @@ if __name__ == "__main__":
     # check if cross-correlation already computed
     if Path(nam_res).is_file():
         with open(nam_res, 'rb') as specfile:
-            Vsys,Kp,corr,sn_map = pickle.load(specfile)
+            Vsys,Kp,corr = pickle.load(specfile)
         print("cross-correlation result loaded")
 
     else:
@@ -322,8 +335,16 @@ if __name__ == "__main__":
             # compute correlation for all orders, save, then later combine chosen orders for plots
             corr = compute_correlation(np.array(list_ord),window,phase,Kp,Vsys,V_shift)
 
+        ### Save data
+        savedata = (Vsys,Kp,corr)
+        with open(nam_res, 'wb') as specfile:
+            pickle.dump(savedata,specfile)
+        print("DONE")
+
     #### Compute statistics and plot the map
-    snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr,Kp_lim,Vsys_lim)
+    print(ind_sel)
+    snrmap_fin  = get_snrmap(np.array(orders)[ind_sel],Kp,Vsys,corr[:,:,ind_sel],Kp_lim,Vsys_lim)
+    print(snrmap_fin)
     sig_fin     = np.sum(np.sum(corr[:,:,ind_sel,:],axis=3),axis=2)/snrmap_fin # axis 3 is time, axis 2 is order # does this line still work for one order?
 
 
@@ -337,10 +358,9 @@ if __name__ == "__main__":
     sn_cuty = sn_map[ind_k]
     cmap    = "gist_heat"
 
-    ### Save data
-    savedata = (Vsys,Kp,corr,sn_map)
-    with open(nam_res, 'wb') as specfile:
-        pickle.dump(savedata,specfile)
+    ### Save snr map
+    with open(nam_res2, 'wb') as specfile:
+        pickle.dump(sn_map,specfile)
     print("DONE")
 
     ### Get and display statistics
@@ -354,6 +374,7 @@ if __name__ == "__main__":
         #V_cut = round(V_best,1)
         #K_cut = round(K_best,1)
     plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True,box=False,text=True,text_title='{} {} \n$K_p$ = {:.2f} km/s \n$V_s$ = {:.2f} km/s'.format(sp,text,K_cut,V_cut))
+    plot_all_orders = False
     if plot_all_orders:
         dir_ord = save_dir+'individual_orders/'
         if args.masked: dir_ord += 'masked/'
