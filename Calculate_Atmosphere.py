@@ -60,10 +60,10 @@ T_equ = 593.  # Atmospheric Equilibrium Temperature (External) [K] -- Guillot mo
 # -------------------------------------------------------------------------------------------------------------#
 
 # Input atmospheric metallicities of planet to test, in units of solar metallicity:
-metallicities = [1]
+metallicities = [1,10,100]
 
 # Input atmospheric C/O ratios to test:
-C_O_ratios = [0.5]
+C_O_ratios = [0.5,0.6,0.7,0.8,0.9,1.0]
 
 # The 4 lists below will each need to be updated if the list of species is changed, and the respective order
 # needs to be maintained with each species consistently in same index in each list.
@@ -313,7 +313,7 @@ def fastchem(metallicity, ratio, temp_profile='Guillot'):
 
 def calculate_atm(LS, min_wavelength, max_wavelength, metallicities=metallicities, C_O_ratios=C_O_ratios,
                   temp_profile='Guillot', haze_factor='no', gamma=gamma,
-                  kappa_IR=kappa_IR, T_int=T_int, normalisation_size=1000):
+                  kappa_IR=kappa_IR, T_int=T_int, Pcloud=None, normalisation_size=1000):
     if temp_profile == 'Guillot':
         temperature = nc.guillot_global(pressure, kappa_IR, gamma, gravity, T_int, T_equ)
     elif temp_profile == 'Isothermal':
@@ -333,6 +333,7 @@ def calculate_atm(LS, min_wavelength, max_wavelength, metallicities=metallicitie
 
             # Calling fastchem function to calculate abundances
             MMW, abundances, output_dir = fastchem(metallicity, ratio, temp_profile=temp_profile)
+            # abundances are mass fractions, X (can convert to VMR otherwise known as number fraction)
 
             # Re-assign output directory so the spectra for each wavlength chunk can be saved
             output_dir += str(int(min_wavelength)) + '_' + str(int(max_wavelength)) + '/'
@@ -358,9 +359,15 @@ def calculate_atm(LS, min_wavelength, max_wavelength, metallicities=metallicitie
 
             atmosphere.setup_opa_structure(pressure)
             if haze_factor == 'no' or haze_factor == 'No':
-                atmosphere.calc_transm(temperature, abundances, gravity, MMW, R_pl=Rp, P0_bar=P0)
+                if Pcloud is not None:
+                    atmosphere.calc_transm(temperature, abundances, gravity, MMW, R_pl=Rp, P0_bar=P0, Pcloud=Pcloud)
+                else:
+                    atmosphere.calc_transm(temperature, abundances, gravity, MMW, R_pl=Rp, P0_bar=P0)
             else:
-                atmosphere.calc_transm(temperature, abundances, gravity, MMW, R_pl=Rp, P0_bar=P0,haze_factor=haze_factor)
+                if Pcloud is not None:
+                    atmosphere.calc_transm(temperature, abundances, gravity, MMW, R_pl=Rp, P0_bar=P0,haze_factor=haze_factor, Pcloud=Pcloud)
+                else:
+                    atmosphere.calc_transm(temperature, abundances, gravity, MMW, R_pl=Rp, P0_bar=P0,haze_factor=haze_factor)
 
             atmosphere.calc_flux(temperature, abundances, gravity, MMW)
 
@@ -370,13 +377,18 @@ def calculate_atm(LS, min_wavelength, max_wavelength, metallicities=metallicitie
 
             # Normalisation
             normalised_max = normalisation(flux_variation, normalisation_size)
-
             # Saving the pRT data to an output file, a different file for each of the wavelength bounds
             # so that when calculating spectrum in chunks all of the data is saved
             if haze_factor == 'no' or haze_factor == 'No':
-                file = Path(output_dir + '/pRT_data_' + molecule_names + '.dat')
+                if Pcloud is not None:
+                    file = Path(output_dir + '/pRT_data_' + molecule_names + '_Pcloud{}.dat'.format(Pcloud))
+                else:
+                    file = Path(output_dir + '/pRT_data_' + molecule_names + '.dat')
             else:
-                file = Path(output_dir + '/pRT_data_' + molecule_names + '_Cloudy.dat')
+                if Pcloud is not None:
+                    file = Path(output_dir + '/pRT_data_' + molecule_names + '_Pcloud{}_haze{}.dat'.format(Pcloud,haze_factor))
+                else:
+                    file = Path(output_dir + '/pRT_data_' + molecule_names + '_haze{}.dat'.format(haze_factor))
 
             file.touch(exist_ok=True)
             with open(file, 'w') as pRT_output:
