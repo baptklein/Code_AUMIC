@@ -35,7 +35,7 @@ C_O_ratios = [0.5,0.6,0.7,0.8,0.9,1.0]
 # min/max_wavelength: wavelength bounds (nm) over which to test.
 # orders = 'yes' or 'no': choose whether to overlay the spirou diffraction grating orders on the spectrum - default is yes.
 # species = []: A list containing the species to produce the spectra for - default is all species: ['CH4', 'CO', 'CO2', 'H2O', 'NH3']
-def generate_spectrum(min_wavelength, max_wavelength, orders='yes', species=['H2O'], haze_factor='no', Pcloud=None):
+def generate_spectrum(min_wavelength, max_wavelength, orders='yes', species=['CH4', 'CO', 'CO2', 'H2O', 'NH3'], haze_factor='no', Pcloud=None):
     for metallicity in metallicities:
         for ratio in C_O_ratios:
             # Check if output directory exists, create it if not
@@ -459,11 +459,48 @@ def clear_cloudy(min_wavelength, max_wavelength, species=['CO', 'CH4', 'H2O', 'N
 
 ### EXAMPLES:
 #To generate individual spectra for all species over all 100nm wavelength chunks
-species = ['H2O']#, 'H2O', 'CO2', 'CO', 'NH3']
-for i in range(len(species)):
-    for j in range(900,2700,100):
-       generate_spectrum(min_wavelength=j, max_wavelength=j+100, orders='yes', species=[species[i]])
+species = ['H2O', 'CH4', 'CO2', 'CO', 'NH3']
+species.sort()
+sp          = '_'.join(i for i in species)
+#for i in range(len(species)):
+#    for j in range(900,2700,100):
+#       generate_spectrum(min_wavelength=j, max_wavelength=j+100, orders='yes', species=[species[i]])
 
+for j in range(900,2700,100):
+   generate_spectrum(min_wavelength=j, max_wavelength=j+100, orders='yes', species=species)
+
+
+# take the 100nm models and concatenate them
+for met in metallicities:
+    for rat in C_O_ratios:
+        mod_dir = 'Models/{}x_metallicity_{}_CO_ratio/'.format(met,rat)
+        # dig out the models at each wavelength
+        mod_files = sorted(glob.glob(mod_dir+'*/pRT_data_{}.dat'.format(sp)))
+        W_mod = []
+        T_depth = []
+        for ifile in mod_files:
+            with open(ifile, 'r') as data:
+                lines = data.readlines()
+                data.close()
+            for line in lines[4:]:
+                v = line.split(' ')
+                W_mod.append(float(v[0]))
+                T_depth.append(float(v[1].split('\n')[0]))
+        W_mod = np.array(W_mod)
+        l = np.argsort(W_mod)
+        W_mod = W_mod[l]
+        T_depth = np.array(T_depth)[l]
+        file = Path(mod_dir+'pRT_data_full_{}.dat'.format(sp))
+        file.touch(exist_ok=True)
+        with open(file, 'w') as pRT_output:
+            pRT_output.write('Atmospheric Species: ')
+            pRT_output.write('{}'.format(sp) + '\n')
+            pRT_output.write('Metallicity: ' + str(met) + '\n')
+            pRT_output.write('C/O_Ratio: ' + str(rat) + '\n')
+            pRT_output.write('Wavelength[nm] Flux_variation\n')
+            for i in range(len(W_mod)):
+                pRT_output.writelines(str(W_mod[i]) + ' ' + str(T_depth[i]) + '\n')
+            pRT_output.close
 # To generate full spectra over all 100nm wavelength chunks:
 #for i in range(900,2700,100):
 #    generate_spectrum(min_wavelength=i, max_wavelength=i+100, orders='yes')
