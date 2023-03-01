@@ -11,11 +11,13 @@ import sys
 import os
 import matplotlib.pyplot as plt
 import pickle
+from astropy.convolution import Gaussian1DKernel, convolve
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.decomposition import FastICA
 from scipy.optimize import curve_fit
 from scipy import interpolate
+from scipy.ndimage import percentile_filter,maximum_filter
 import time
 from functions import *
 import warnings
@@ -55,13 +57,14 @@ with open(filename,'rb') as specfile:
     A = pickle.load(specfile)
 orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
 
-
 # I should save these in Ia under read_data.py
 skycalc_dir = outroot+'skycalc_models/'
 if instrument=='igrins' or instrument=='IGRINS':
     mod_add  = 'Gemini_South'
+    R        = 45000
 elif instrument=='spirou' or instrument=='SPIROU':
     mod_add  = 'Canada-France-Hawaii_Telescope'
+    R        = 70000
 file_list = sorted(glob.glob(skycalc_dir+'skycalc_models_AU_MIC_{}_frame*.npz'.format(mod_add)))
 
 skycalc_models = [] # will be in order: nep, ndet, npix
@@ -72,19 +75,22 @@ for ifile in range(len(file_list)):
     skycalc_wlens.append(d['wlens'])
 
 ### Injection parameters - optionally inject a planet model
-inject   = True
-inj_amp  = 3.
+inject   = False
+inj_amp  = 1.
 inj_Kp   = 83. #km/s 83km/s true_data
-inj_vsys = 5.  #km/s -4.71 km/s true_data
+inj_vsys = -4.71  #km/s -4.71 km/s true_data
+
 
 
 ### Data reduction parameters
-align    = False      # optionally align the spectra
-fitblaze = True       # optionally fit a blaze function to IGRINS spectra
-dep_min  = 0.7        # remove all data when telluric relative absorption < 1 - dep_min
-thres_up = 0.1       # Remove the line until reaching 1-thres_up
-Npt_lim  = 200       # If the order contains less than Npt_lim points, it is discarded from the analysis
-doLS     = False      # perform stretch/shift of reference stellar out-of-transit mean spectrum to each observed spectrum (ATM only turned off for spirou)
+StarRotator = False      # optionally remove StarRotator model at the beginning of reduction
+phoenix     = True       # use phoenix option of StarRotator, if False use Kurucz
+align       = False      # optionally align the spectra
+fitblaze    = False       # optionally fit a blaze function to IGRINS spectra
+dep_min     = 0.7        # remove all data when telluric relative absorption < 1 - dep_min
+thres_up    = 0.1       # Remove the line until reaching 1-thres_up
+Npt_lim     = 200       # If the order contains less than Npt_lim points, it is discarded from the analysis
+doLS        = False      # perform stretch/shift of reference stellar out-of-transit mean spectrum to each observed spectrum (ATM only turned off for spirou)
 
 ### Interpolation parameters
 sig_g    = 1.0                         ### STD of one SPIRou px in km/s
@@ -106,8 +112,8 @@ auto_tune   = True                             ### Automatic tuning of number of
 thr_pca     = 1.0                   ### PCA comp removed if eigenvalue larger than thr_pca*max(eigenvalue_noise)
 
 # post-processing
-sample_residuals = False  # optionally sample deep telluric residuals post PCA
-do_hipass        = True
+sample_residuals = True  # optionally sample deep telluric residuals post PCA
+do_hipass        = False
 
 if fitblaze and instrument=='spirou':
     print('fitblaze not set up for spirou')
@@ -120,7 +126,7 @@ if inject:
     outroot += 'inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}'.format(inj_amp,inj_Kp,inj_vsys)
     # load model
     # model files
-    species     = ['CH4'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
@@ -135,13 +141,17 @@ if inject:
         v = line.split(' ')
         W_mod.append(float(v[0]))
         T_depth.append(float(v[1].split('\n')[0]))
-    W_mod    = np.array(W_mod)#/1e3 # convert to um
+    W_mod    = np.array(W_mod) # nm
     T_depth  = np.array(T_depth)
-    print(W_mod)
     mod_func = interpolate.interp1d(W_mod,T_depth)
     outroot += '_{}/'.format(sp)
 else:
     outroot += 'true_data/'
+if StarRotator:
+    if phoenix: ll = 'phoenix'
+    else: ll = 'kurucz'
+    outroot += 'StarRotator_{}/'.format(ll)
+
 if align:
     outroot += 'aligned/'
 if fitblaze:
@@ -173,7 +183,7 @@ print(nord,"orders detected")
 list_ord = []
 for nn in range(nord):
     O        = Order(orders[nn])
-    O.W_raw  = np.array(WW[nn],dtype=float)
+    O.W_raw  = np.array(WW[nn],dtype=float) # nm
     print(O.W_raw.min())
     if inject:
         print('\n injecting a model of {}'.format(sp))
@@ -190,24 +200,107 @@ for nn in range(nord):
         O.I_raw      = flux
     else:
         O.I_raw  = np.array(Ir[nn],dtype=float)
-    #O.blaze  = np.array(blaze[nn],dtype=float)
-    #O.I_atm  = np.array(Ia[nn],dtype=float)
+    O.blaze  = np.array(blaze[nn],dtype=float)
     O.SNR    = np.array(SN[nn],dtype=float)
     O.W_mean = O.W_raw.mean()
-    # skycalc models for telluric reference
-    atm  = []
-    watm = []
-    for iep in range(len(O.I_raw)):
-        atm.append(skycalc_models[iep][nn])
-        watm.append(skycalc_wlens[iep][nn])
-    O.I_atm = np.array(atm)
-    O.W_atm = np.array(watm) # shape nep,npix but should be same in each ep
+    if instrument=='spirou':
+        O.I_atm  = np.array(Ia[nn],dtype=float)
+    else:
+        # skycalc models for telluric reference
+        atm  = []
+        watm = []
+        for iep in range(len(O.I_raw)):
+            atm.append(skycalc_models[iep][nn])
+            watm.append(skycalc_wlens[iep][nn])
+        O.I_atm = np.array(atm)
+        O.W_atm = np.array(watm) # shape nep,npix but should be same in each ep
 
     list_ord.append(O)
 print("DONE\n")
 
 t0          = time.time()
 NCF         = np.zeros(nord)
+
+if StarRotator:
+    print("Uploading StarRotator model, convolving and interpolating\n")
+    # upload model
+    if phoenix: ll = '0mu'
+    else:       ll = '20mu' # adjust number of mu angles here
+    with open('../../StarRotator/AUMIC_{}_StarRotator_{}.pkl'.format(instrument,ll),'rb') as specfile:
+        SRwl,SRspectra,SRstellar_spectrum,SRlightcurve,SRmask = pickle.load(specfile)
+    # convolve to instrument resolution
+    dv = c0/R/1000. # in km/s
+
+    R_model = (SRwl[1:-1]+SRwl[0:-2])/(SRwl[1:-1]-SRwl[0:-2])/2
+    sigma  = np.median(R_model)/R
+    if sigma<1: sigma = 1 # otherwise 'increasing' resolution
+    kernel = Gaussian1DKernel(stddev=sigma)
+
+    for iord in range(nord):
+        O        = list_ord[iord]
+        WW_ord   = O.W_raw
+        I_ord    = O.I_raw
+        nep,npix = I_ord.shape
+
+        # Shift PHOENIX model from stellar rest frame -> Doppler shift (and interpolate) to Earth rest frame
+        # move W_cl Earth rest wavelengths to stellar rf
+        WW_star = WW_ord[None,:] / ( 1 + V_corr[:,None]/c0)
+        ## Evaluate StarRotator models in Earth rest frame for each order, convolved to SPIRou resolution
+        SRp_flux_Earth = np.zeros_like(I_ord)
+        for iep in range(nep):
+            # convolve first to SPIRou resolution
+            f_conv = convolve(SRspectra[iep],kernel,normalize_kernel=True,boundary='extend')
+
+            # interpolate to Earth rest frame (for the chosen order)
+            star_func = interp1d(SRwl,f_conv,bounds_error=False)
+            SRp_flux_Earth[iep] = star_func(WW_star[iep])
+
+        ## normalise the models
+        cont_model = []
+        for iep in range(len(SRp_flux_Earth)):
+            # normalise
+            flm = maximum_filter(SRp_flux_Earth[iep],size=100)
+            SRp_flux_Earth[iep] /= flm
+            cont_model.append(flm)
+        O.SR = SRp_flux_Earth
+
+        # Fit model to the data
+        ####################################
+        ###    STEP 1: normalise data    ###
+        ####################################
+        fn       = np.zeros((nep,npix))
+        cont     = np.zeros_like(fn)
+        for iep in range(nep):
+            filt      = maximum_filter(I_ord[iep],size=50)
+            fn[iep]   = I_ord[iep]/filt
+            cont[iep] = filt
+
+        ######################################
+        ###    STEP 2: fit scaling param   ###
+        ######################################
+        scale_params = []
+        for iep in range(nep):
+            _fm = O.SR[iep]-1
+            _fn = fn[iep]-1
+
+            def model(WW_ord,a):
+                return a*_fm
+
+            popt,pconv = curve_fit(model,WW_ord,_fn)
+            scale_params.append(popt[0])
+
+        ######################################
+        ###    STEP 3: apply correction    ###
+        ######################################
+
+        I_SR = np.zeros_like(I_ord)
+        for iep in range(nep):
+            fm_ = O.SR[iep] - 1
+            #_fn = 1-fn[iep]
+            #I_SR[iep] = ( (_fn/(scale_params[iep]*_fm)) + 1 ) * cont[iep]
+            I_SR[iep] = (fn[iep] / (scale_params[iep]*fm_ + 1 ) )
+
+        O.I_raw = I_SR/np.nanmean(I_SR,axis=0)
 
 
 #### Main reduction
@@ -373,12 +466,12 @@ for nn in range(nord):
                     normspec = test_flux/np.max(test_flux)
                     curcall = 0
                     residrms = 1
-                    numcall = 10
+                    numcall = 15
                     while ((curcall < numcall) and (residrms > maxrms)):
                         #print('On iteration {} of {}'.format(curcall,numcall))
                         #with warnings.simplefilter('ignore',np.RankWarning):
                         z,mask,residrms,test_wlens,normspec = O.fit_blaze(test_wlens, normspec, maxrms,
-                                         numcalls=numcall, curcall=curcall,verbose=False,showplot=False)
+                                         numcalls=numcall, curcall=curcall,order=15,nbor=15,verbose=False,showplot=False)
                         #mask = ~a
                         curcall +=1
                     wl = W_cl
@@ -389,6 +482,7 @@ for nn in range(nord):
                     #plt.show()
                     blaze.append(cfit(wl))
                 I_cl = I_cl/blaze
+                O.blaze = blaze
 
             if not do_hipass and not sample_residuals:
                 I_sub1 = I_cl
@@ -457,16 +551,16 @@ for nn in range(nord):
         ### END of STEP 1
         print('after blaze {}'.format(np.isnan(I_sub.any())))
         ### STEP 2 -- NORMALISATION AND OUTLIER REMOVAL
-        if fitblaze:
-            W_norm1,I_norm1 = W_sub,I_sub
-        else:
-            W_norm1,I_norm1 = O.normalize(W_sub,I_sub,N_med,sig_out,N_bor)
+        W_norm1,I_norm1 = O.normalize(W_sub,I_sub,N_med,sig_out,N_bor)
         ### Correct for bad pixels
 
         W_norm2,I_norm2 = O.filter_pixel(W_norm1,I_norm1,deg_px,sig_out)
         ### END of STEP 2
         print('after normalisation {}'.format(np.isnan(I_norm2.any())))
-        #plt.plot(I_norm2[2])
+        #plt.figure()
+        #for iep in range(len(I_norm2)):
+        #    plt.plot(I_norm2[iep])
+        #plt.show()
         ### STEP 3 -- DETREND WITH AIRMASS -- OPTIONAL
 
         ind_flag = []
@@ -564,12 +658,14 @@ for nn in range(nord):
                 principalComponents = pca.transform(x_pca)
                 x_pca_projected = pca.inverse_transform(principalComponents)
                 O.I_pca = np.exp((ff-x_pca_projected)*ist+im) - 1.0
+                O.M_pca = np.exp(x_pca_projected*ist+im) # save that removed for the model reprocessing
+                O.ncom_pca = n_com
                 # check if within range of DRS dispersion
                 disp = np.mean(np.std(O.I_pca[:,indw-N_px:indw+N_px],axis=1))
                 drs_disp = 1./O.SNR
                 drs_disp_mean = np.mean(drs_disp)
                 drs_disp_std = np.std(drs_disp)
-                while disp>drs_disp_mean+2*drs_disp_std:
+                '''while disp>drs_disp_mean+2*drs_disp_std:
                     # if dispersion is greater than 2 errorbars from drs
                     # add a principal component
                     n_com += 1
@@ -584,7 +680,7 @@ for nn in range(nord):
                         principalComponents = pca.transform(x_pca)
                         x_pca_projected = pca.inverse_transform(principalComponents)
                         O.I_pca = np.exp((ff-x_pca_projected)*ist+im) - 1.0
-                        disp = np.mean(np.std(O.I_pca[:,indw-N_px:indw+N_px],axis=1))
+                        disp = np.mean(np.std(O.I_pca[:,indw-N_px:indw+N_px],axis=1))'''
 
 
                 NCF[nn] = n_com
@@ -598,7 +694,7 @@ for nn in range(nord):
                     extent = (wmin - 0.5 * dw, wmax - 0.5 * dw, nep - 0.5, 0.5)
                     mp2=axes[1].imshow(O.I_pca, extent=extent, interpolation='nearest', aspect='auto',vmin=-0.01,vmax=0.01)
                     fig.colorbar(mp2,ax=axes[1])
-                    if not sample_residuals or not do_hipass:
+                    if not sample_residuals:
                         axes[1].set_xlabel(xlabel)
                         plt.tight_layout()
                         plt.savefig(outroot+"pca_reduced_order{}.png".format(O.number))
@@ -650,6 +746,7 @@ for nn in range(nord):
 
             ### POST-PCA MASKING OF NOISY COLUMNS
             # identify residual tellurics
+            nep,npix  = O.I_pca.shape
             std       = np.std(O.I_pca,axis=0)
             thr       = fac*np.nanmedian(std)
             l         = std>thr
@@ -657,8 +754,14 @@ for nn in range(nord):
             I_mask    = np.copy(O.I_pca)
             I_mask[l] = np.nan
             # additional masking
-            #std       = np.nanstd(I_mask)
+            std       = np.nanstd(I_mask)
+            mean      = np.nanmean(I_mask)
+            l         = np.zeros_like(I_mask,'bool')
+            for ipix in range(npix):
+                if ((I_mask[:,ipix]-mean)>3.*std).any():
+                    l[:,ipix] = True # mask entire column
             #I_mask[np.abs(I_mask)>3.*std] = np.nan
+            I_mask[l] = np.nan
             O.I_mask  = I_mask
             mk        = np.isnan(I_mask)
             O.mask    = mk
@@ -700,6 +803,8 @@ Imask = []
 mask  = []
 SNR_mes = []
 SNR_mes_pca = []
+MPC = []
+NPC = []
 for nn in range(len(orders_fin)):
     O  = list_ord_fin[nn]
     WW.append(O.W_fin)
@@ -708,7 +813,9 @@ for nn in range(len(orders_fin)):
     mask.append(O.mask)
     SNR_mes.append(O.SNR_mes)
     SNR_mes_pca.append(O.SNR_mes_pca)
-savedata = (orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask)
+    MPC.append(O.M_pca)
+    NPC.append(O.ncom_pca)
+savedata = (orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask,MPC,NPC)
 with open(nam_fin, 'wb') as specfile:
     pickle.dump(savedata,specfile)
 print("DONE")

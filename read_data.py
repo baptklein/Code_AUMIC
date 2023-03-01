@@ -19,7 +19,11 @@ from functions import *
 import glob
 from pathlib import Path
 
-dir_data = "Data/IGRINS/"   #Sep18 #Jun19
+instrument = 'spirou' # set instrument
+
+dir_data = "Data/"
+if instrument=='igrins': dir_data += "IGRINS/"   #Sep18 #Jun19
+elif instrument=='spirou': dir_data += 'SPIROU/transit/'
 
 # define planet b parameters
 # from Martioli+2021
@@ -44,31 +48,75 @@ ncut     = 100 # minimum number of datapoints for order to be kept
 c0 = Constants().c0
 
 ### Name of the pickle file to store the info in
-outroot = "Input_data/igrins/"
+outroot = "Input_data/"
+if instrument=='igrins': outroot += "igrins/"
+elif instrument=='spirou': outroot += "spirou/"
 os.makedirs(outroot,exist_ok=True)
-name_fin = outroot+"data_igrins.pkl"
-wlen_fin = outroot+'wlens_igrins.pkl'
-humidity_fin = outroot+'humidity_igrins.pkl'
+name_fin = outroot+"data_{}.pkl".format(instrument)
+wlen_fin = outroot+'wlens_{}.pkl'.format(instrument)
+humidity_fin = outroot+'humidity_{}.pkl'.format(instrument)
 
+if instrument=='igrins':
+    time_JD, wlens, data_RAW, data_var, data_sn, airms, humidity = read_igrins_data(dir_data)
+elif instrument=='spirou':
+    list_ord = []
+    nord     = 49
+    orders   = 79 - np.arange(nord)
+    for iord in range(nord):
+        O = Order(orders[iord])
+        list_ord.append(O)
+    list_ord,airms,time_JD,berv,snr_mat,humidity = read_data_spirou(dir_data,list_ord,49)
 
-time_JD, wlens, data_RAW, data_var, data_sn, airms, humidity = read_igrins_data(dir_data)
+    # format for the below
+    O = list_ord[0] #just retrieve first as an example
+    nep,npix = O.I_raw.shape
+    print(nep,npix)
+    data_RAW = np.zeros((nord,nep,npix))
+    wlens    = np.zeros((nord,npix))
+
+    print(data_RAW.shape)
+    data_var = np.zeros_like(data_RAW)
+    data_sn  = np.zeros((nord,nep))
+    I_atm    = np.zeros_like(data_RAW)
+    blaze    = np.zeros_like(data_RAW)
+    for iord in range(nord):
+        data_RAW[iord,:,:] = list_ord[iord].I_raw
+        #print(list_ord[iord].W_raw[:,0])
+        wlens[iord,:]      = list_ord[iord].W_raw[0] # checked that all the nep solutions are the same
+        data_sn[iord,:]  = list_ord[iord].SNR
+        I_atm[iord,:,:]    = list_ord[iord].I_atm
+        blaze[iord,:,:]    = list_ord[iord].blaze
+
+if instrument=='spirou':
+    axx      = np.argwhere(airms<2.55)[:,0] # remove low SN spectra
+    data_RAW = data_RAW[:,axx,:]
+    print(data_RAW.shape)
+    data_sn  = data_sn[:,axx]
+    data_var = data_var[:,axx,:]
+    airms    = airms[axx]
+    time_JD  = time_JD[axx]
+    humidity = humidity[axx]
+    berv     = berv[axx]
+
+    I_atm    = I_atm[:,axx]
+    blaze    = blaze[:,axx,:]
 
 # check if orders_igrins.dat file exists, if not create it
-orders_file = 'orders_igrins.dat'
+orders_file = 'orders_{}.dat'.format(instrument)
 if not Path(orders_file).is_file():
-    igrins_min = []
-    igrins_max = []
+    w_min = []
+    w_max = []
     wlens_mean = []
-    for i in range(len(wlens)):
-        igrins_min.append(wlens[i].min())
-        igrins_max.append(wlens[i].max())
-        wlens_mean.append(wlens[i].mean())
-    igrins_min = np.array(igrins_min)
-    igrins_max = np.array(igrins_max)
+    for iord in range(len(wlens)):
+        w_min.append(wlens[iord].min())
+        w_max.append(wlens[iord].max())
+        wlens_mean.append(wlens[iord].mean())
+    w_min = np.array(w_min)
+    w_max = np.array(w_max)
     wlens_mean = np.array(wlens_mean)
     ords       = np.arange(len(wlens))
-    DataOut    = np.column_stack((ords,wlens_mean,igrins_min,igrins_max))
-    np.savetxt(orders_file,DataOut,fmt=('%i','%.14f','%.14f','%.14f'),header='IGRINS orders min and max wavelengths')
+    DataOut    = np.column_stack((ords,wlens_mean,w_min,w_max))
+    np.savetxt(orders_file,DataOut,fmt=('%i','%.14f','%.14f','%.14f'),header='{} orders min and max wavelengths'.format(instrument))
 
 plt.plot(time_JD,"+")
 plt.title('JD')
@@ -92,7 +140,12 @@ t0           = tmid
 flux         = compute_transit(Rp,Rs,ip,t0,ap,P,ep,wp,ld_mod,ld_coef,time_JD)
 window       = (1-flux)/np.max(1-flux)
 print("DONE")
-
+print(phase.min())
+print(phase.max())
+axx = np.argmin(abs(phase))
+print(airms[axx])
+print(len(phase))
+print(len(np.where(window!=0.)[0]))
 
 
 
@@ -124,7 +177,10 @@ for idet in range(ndet):
 data_RAW = data_fin
 data_var = data_var[ind_sort]
 data_sn  = data_sn[ind_sort]
-SN       = np.nanmean(data_sn,axis=2)
+if instrument=='igrins':
+    SN   = np.nanmean(data_sn,axis=2) # take the mean across the spectrum
+elif instrument=='spirou':
+    SN   = data_sn
 nord     = len(SN)
 orders   = np.arange(nord)
 
@@ -216,12 +272,14 @@ if plot:
     plt.xlabel("Time wrt transit [h]")
     ax.set_ylabel("Peak S/N\n", labelpad=ypad)
     plt.subplots_adjust(hspace=0.02)
-    plt.savefig("transit_info.pdf",bbox_inches="tight")
+    plt.savefig(outroot+"transit_info.pdf",bbox_inches="tight")
     plt.close()
 
 
-
-savedata = (orders,W_corr,I_corr,np.zeros_like(data_RAW),np.zeros_like(data_RAW),time_JD,phase,window,vbary,V0+Vp,airms,SN)
+if instrument=='igrins':
+    savedata = (orders,W_corr,I_corr,np.zeros_like(data_RAW),np.zeros_like(data_RAW),time_JD,phase,window,vbary,V0+Vp,airms,SN)
+elif instrument=='spirou':
+    savedata = (orders,W_corr,I_corr,blaze,I_atm,time_JD,phase,window,vbary,V0+Vp,airms,SN)
 with open(name_fin, 'wb') as specfile:
     pickle.dump(savedata,specfile)
 # save wlens in a separate file
