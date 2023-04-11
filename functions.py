@@ -96,6 +96,7 @@ def read_igrins_data(repp):
         hdu_list = fits.open(specfilesH[ifile])
         image_dataH = hdu_list[0].data
         hdr = hdu_list[0].header
+        print('gain: {}'.format(hdr['GAIN']))
         date_begin = hdr['DATE-OBS'] # in UTC
         date_end = hdr['DATE-END']
         t1 = Time(date_begin,format='isot',scale='utc')
@@ -104,6 +105,7 @@ def read_igrins_data(repp):
         time_MJD[ifile] = float(0.5*(t1.mjd+t2.mjd))
         airms[ifile] = 0.5*(hdr['AMSTART']+hdr['AMEND']) # average airmass
         humidity[ifile] = hdr['HUMIDITY']
+        print(hdr['EXPTIME'])
         print(date_begin, date_end, time_MJD[ifile])
 
         #variances
@@ -172,19 +174,23 @@ def read_data_spirou(repp,list_ord,nord):
     nobs      = len(nam_t)
     airmass   = np.zeros(nobs)
     bjd       = np.zeros(nobs)
+    jd        = np.zeros(nobs)
     berv      = np.zeros(nobs)
     snr_mat   = np.zeros((nobs,nord))
+    humidity  = np.zeros(nobs)
     for nn in range(nobs):
         nmn          = repp + "/" + str(nam_t[nn])
         hdul_t       = fits.open(nmn)
         airmass[nn]  = float(hdul_t[0].header["AIRMASS"])
-        bjd[nn]      = float(hdul_t[1].header["BJD"]) #(float(hdul_t[0].header['MJDATE'])+float(hdul_t[0].header['MJDEND']))/2.0+2400000.5
+        bjd[nn]      = float(hdul_t[1].header["BJD"])
+        jd[nn]       = (float(hdul_t[0].header['MJDATE'])+float(hdul_t[0].header['MJDEND']))/2.0+2400000.5
 
         berv[nn]     = float(hdul_t[1].header["BERV"])
         i            = np.array(hdul_t[1].data,dtype=float) # intensity spectrum
         w            = np.array(hdul_t[2].data,dtype=float) # wavelength vector
         bla          = np.array(hdul_t[3].data,dtype=float) # blaze vector
         atm          = np.array(hdul_t[4].data,dtype=float) # telluric spectrum
+        humidity[nn] = float(hdul_t[1].header["RELHUMID"])
         ### Get S/N values
         for mm in range(nord):
             num = 79 - list_ord[mm].number
@@ -209,7 +215,7 @@ def read_data_spirou(repp,list_ord,nord):
         O.I_raw = np.array(O.I_raw,dtype=float)
         O.blaze = np.array(O.blaze,dtype=float)
         O.I_atm = np.array(O.I_atm,dtype=float)
-    return list_ord,airmass,bjd,berv,snr_mat
+    return list_ord,airmass,jd,berv,snr_mat,humidity
 
 # -----------------------------------------------------------
 # Get transit window -- requires batman python module
@@ -633,7 +639,9 @@ class Order:
         self.Wm       = []
         self.Im       = []
         self.corr     = []
-
+        self.M_pca    = []
+        self.ncom_pca = []
+        self.std_fit  = []
 
 
 
@@ -753,7 +761,7 @@ class Order:
     # Fit a blaze function (the continuum) to the (IGRINS) spectra
     #
     # -----------------------------------------------------------
-    def fit_blaze(self, Ws, Is, rms_thres, numcalls=10, curcall=0,
+    def fit_blaze(self, Ws, Is, rms_thres, numcalls=10, curcall=0, order=5, nbor=50,
                  verbose=False, showplot=False):
         """
         --> Inputs:     - Order object
@@ -764,6 +772,7 @@ class Order:
                                      until the rms of the residuals is 1%
                         - numcalls:  the max number of iterations
                         - curcall:   store current iteration
+                        - order:     order of the polynomial to fit
                         - verbose:   print info
                         - showplot:  plot things
 
@@ -783,7 +792,7 @@ class Order:
         #normspec = spec/max(spec)
 
         #fit a polynomial to the data:
-        z = np.polyfit(Ws, Is, 5)
+        z = np.polyfit(Ws, Is, order)
 
         #make a function based on those polynomial coefficients:
         cfit = np.poly1d(z)
@@ -795,7 +804,9 @@ class Order:
         mask = np.where(Is > thresh)[0]
         #print(mask)
         a = np.ones(len(Is),'bool')
-        a[mask] = 0
+        a[mask]  = 0
+        a[:nbor] = 0# exclude the edges from the mask though
+        a[-nbor:] = 0
         if showplot:
             #plot the original spectrum:
             plt.plot(Ws, Is)
@@ -1009,7 +1020,7 @@ class Order:
         #plt.show()
         ### Nb of components: larger than 2*max highenvalue
         ncf   = len(np.where(var>thr*np.max(thres))[0])
-        return ncf
+        return ncf,ampl
 
     def telluric_residual_sampling(self,W,I,wlcen=None):
         """
@@ -1061,7 +1072,7 @@ class Order:
                 fit = cf[0]*smpl**2 + cf[1]*smpl + cf[2]
                 spec[:,ipix] /= fit
             spec -= 1.0
-        return spec
+        return spec,wlcen
 
     def hipass_filter(self,W,I):
         spec = I.copy() + 1
