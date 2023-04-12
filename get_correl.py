@@ -29,8 +29,6 @@ if __name__ == "__main__":
     parser.add_argument("--aligned", action="store_true", default=False,\
         help="use the aligned, wavelength recalibrated spectral matrix, \
          (for IGRINS data)")
-    parser.add_argument("--StarRotator", action='store_true', default=False,\
-        help="use StarRotator models reduced data")
     parser.add_argument("--masked", action="store_true", default=False,\
         help="use the masked spectra")
     parser.add_argument("--blazed", action="store_true", default=False,\
@@ -67,6 +65,12 @@ if __name__ == "__main__":
     parser.add_argument("--Vsys-lim", nargs=2, type=float, default=[-15.,15.],\
         help="Indicate regions to exclude when computing the NOISE level from the correlation map,\
         negative argument to be fed in quotes and with space")
+    parser.add_argument("--Mp", type=float, default=11.7,\
+        help="Mass of planet in terms of Earth masses, selects model with which to cross-correlate\
+        and/or that injected")
+    parser.add_argument("--Rp", type=float, default=0.363,\
+        help="Radius of planet in terms of Jupiter radii, selects model with which to cross-correlate\
+        and/or that injected")
 
 
 
@@ -74,40 +78,65 @@ if __name__ == "__main__":
 
     data_dir  = 'Input_data/'
     if args.instrument == 'igrins' or args.instrument == 'IGRINS':
-        data_dir += 'igrins/'
+        data_dir   += 'igrins/'
         instrument = 'igrins'
+        R          = 45000
     elif args.instrument == 'spirou' or args.instrument == 'SPIROU':
-        data_dir += 'spirou/'
+        data_dir   += 'spirou/'
         instrument = 'spirou'
+        R          = 70000
 
     # model files
-    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CO2']#,'CO','CO2','H2O','NH3'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species.sort()
     sp          = '_'.join(i for i in species)
-    solar       = '1x'
-    CO_ratio    = '1.0'
+    Mp = args.Mp
+    Rp = args.Rp
     order_by_order = False # turn off these models for the moment (may be more efficient in future)
-    if order_by_order and instrument=='spirou':
-        sys.exit('turn of order models for SPIRou')
-    if instrument=='igrins':
-        model_dir   = 'pRT_models/' # works with pRT_make_spec.py
-        model_dir  += 'aumicb_{}Solar_{}_R1M/'.format(solar,sp)
-        if order_by_order:
-            model_dir += 'order_by_order/'
-    elif instrument=='spirou':
-        model_dir = 'Models/{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
+    # binary model optional
+    use_binary_mask = False
+    if use_binary_mask:
+        if args.inject:
+            sys.exit('cannot inject binary mask, turn off')
+        # load model
+        if len(species)>1:
+            sys.exit('cannot use binary mask for more than one species')
+        filename = 'Models/hitemp_binary/HITEMP_binary_{}_3500_30000.npz'.format(species[0])
+        d     = np.load(filename)
+        T_depth  = d['mask']
+        T_depth  = 1-T_depth
+        T_depth -= 1
+        W_mod    = d['wlens']*1e6 # convert to um
+        print(np.min(W_mod))
+        print(np.max(W_mod))
+        binary = '_binary'
+
+    else:
+
+        solar       = '100x'
+        CO_ratio    = '1.0'
+
+        if order_by_order and instrument=='spirou':
+            sys.exit('turn off order models for SPIRou')
+        #if instrument=='igrins':
+        #    model_dir   = 'pRT_models/' # works with pRT_make_spec.py
+        #    model_dir  += 'aumicb_{}Solar_{}_R1M/'.format(solar,sp)
+        #    if order_by_order:
+        #        model_dir += 'order_by_order/'
+        #elif instrument=='spirou':
+        model_dir = 'Models/{:.3f}Mearth_{:.3f}Rjup/{}_metallicity_{}_CO_ratio/'.format(Mp,Rp,solar,CO_ratio)
+        binary = ''
 
     if args.inject:
         print("loading in spectra with injected signal...")
         print("check input Kp-lim and Vsys-lim")
+        data_dir += '{:.3f}Mearth_{:.3f}Rjup/'.format(Mp,Rp)
         data_dir += "inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}_{}/".format(args.inj_amp,\
         args.inj_Kp,args.inj_vsys,sp)
         text = 'injection {}x'.format(int(args.inj_amp))
     else:
         data_dir += "true_data/"
         text = 'true data'
-    if args.StarRotator:
-        SRmod = 'phoenix' # or kurucz
-        data_dir += 'StarRotator_{}/'.format(SRmod)
     if args.blazed:
         data_dir += 'blazed/'
     if args.airmass:
@@ -143,8 +172,11 @@ if __name__ == "__main__":
 
 
     # results file
-    save_dir      = 'xcorr_result/'+'{}/'.format(instrument)+'{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
-    simple        = False # turn on (true)/off simple pearsonr cross-correlation
+    if use_binary_mask:
+        save_dir = 'xcorr_result/'+'{}/'.format(instrument)+'binary_mask/'
+    else:
+        save_dir    = 'xcorr_result/'+'{}/'.format(instrument)+'{:.3f}Mearth_{:.3f}Rjup/'.format(Mp,Rp)+'{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
+    simple          = False # turn on (true)/off simple pearsonr cross-correlation
     plot_all_orders = True
 
     if args.inject:
@@ -152,8 +184,6 @@ if __name__ == "__main__":
         args.inj_Kp,args.inj_vsys,sp)
     else:
         save_dir += "true_data/"
-    if args.StarRotator:
-        save_dir += 'StarRotator_{}/'.format(SRmod)
     if args.blazed:
         save_dir += "blazed/"
     if args.airmass:
@@ -177,15 +207,15 @@ if __name__ == "__main__":
             print('selecting orders')
             select_orders = args.orders
             _orders = '_'.join(str(i) for i in select_orders)
-            nam_res   = save_dir+'corr_Kp_vsys_{}{}{}{}.pkl'.format(sp,al,mk,OOT)
-            nam_res2  = save_dir+'orders_{}/snmap_{}{}{}{}.pkl'.format(_orders,sp,al,mk,OOT)
-            nam_fig   = save_dir+'orders_{}/Kp_vsys_map_{}{}{}{}.png'.format(_orders,sp,al,mk,OOT)
+            nam_res   = save_dir+'corr_Kp_vsys_{}{}{}{}{}.pkl'.format(sp,binary,al,mk,OOT)
+            nam_res2  = save_dir+'orders_{}/snmap_{}{}{}{}{}.pkl'.format(_orders,sp,binary,al,mk,OOT)
+            nam_fig   = save_dir+'orders_{}/Kp_vsys_map_{}{}{}{}{}.png'.format(_orders,sp,binary,al,mk,OOT)
         else:
             sys.exit('specify orders to select if using select-orders argument')
     else:
-        nam_res   = save_dir+'corr_Kp_vsys_{}{}{}{}.pkl'.format(sp,al,mk,OOT)
-        nam_res2  = save_dir+'snmap_{}{}{}{}.pkl'.format(sp,al,mk,OOT)
-        nam_fig   = save_dir+'Kp_vsys_map_ALLorders_{}{}{}{}.png'.format(sp,al,mk,OOT)
+        nam_res   = save_dir+'corr_Kp_vsys_{}{}{}{}{}.pkl'.format(sp,binary,al,mk,OOT)
+        nam_res2  = save_dir+'snmap_{}{}{}{}{}.pkl'.format(sp,binary,al,mk,OOT)
+        nam_fig   = save_dir+'Kp_vsys_map_ALLorders_{}{}{}{}{}.png'.format(sp,binary,al,mk,OOT)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     if args.select_orders:
@@ -217,12 +247,20 @@ if __name__ == "__main__":
     ### READ data
     print("Read data from",data_dir+filename)
     with open(data_dir+filename,'rb') as specfile:
+        A = pickle.load(specfile)
         if instrument=='igrins':
-            orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask = pickle.load(specfile)
+            if len(A)>16:
+                orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask,MPC,NPC,std_ampl = A
+            else:
+                orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask,MPC,NPC = A
+
         elif instrument=='spirou' and args.airmass:
-            orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask = pickle.load(specfile)
+            if len(A)>16:
+                orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask,MPC,NPC,std_ampl = A
+            else:
+                orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask,MPC,NPC = A
         else:
-            orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN = pickle.load(specfile)
+            orders,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN = A
     if oot:
         # reverse window, to only cross-correlate with out-of-transit frames
         # but no weightings for ingress/egress
@@ -251,6 +289,7 @@ if __name__ == "__main__":
         O.W_fin  /= 1e3 # hack to convert to um (make universal later)
         O.SNR    = np.array(SN[nn],dtype=float)
         O.W_mean = O.W_fin.mean()
+        print(O.W_mean)
         if args.masked:
             O.I_pca = np.array(Imask[nn],dtype=float)
         else:
@@ -269,6 +308,8 @@ if __name__ == "__main__":
                 l[ipix] = False
         O.W_fin = O.W_fin[l]
         O.I_pca = O.I_pca[:,l]
+        O.M_pca = MPC[nn]    # pca removed from the data
+        O.ncom_pca = NPC[nn] # number of pca components removed
         list_ord.append(O)
 
 
@@ -284,10 +325,14 @@ if __name__ == "__main__":
     #maxf           = ndimage.maximum_filter(T_depth,size=10000)
 
     if not order_by_order:
-        if instrument=='igrins':
-            mod_file = model_dir + 'template_det1.pic'
-            W_mod,T_depth = pickle.load(open(mod_file,'rb'))
-        elif instrument=='spirou':
+        print('loading {} model'.format(sp))
+        #if instrument=='igrins':
+        #    mod_file = model_dir + 'template_det1.pic'
+        #    W_mod,T_depth = pickle.load(open(mod_file,'rb'))
+        #elif instrument=='spirou':
+        #mod_file = model_dir+'pRT_data_full_{}_R{}.dat'.format(sp,R)
+        if not use_binary_mask:
+
             mod_file = model_dir+'pRT_data_full_{}.dat'.format(sp)
             W_mod = []
             T_depth = []
@@ -298,10 +343,11 @@ if __name__ == "__main__":
                 v = line.split(' ')
                 W_mod.append(float(v[0]))
                 T_depth.append(float(v[1].split('\n')[0]))
-            W_mod = np.array(W_mod)/1e3
+            W_mod = np.array(W_mod)/1e3 # convert to um
             T_depth = np.array(T_depth)
-        if args.inject:
-            T_depth = (1 + args.inj_amp*(T_depth-1))
+            if args.inject:
+                T_depth = (1 + args.inj_amp*(T_depth-1))
+            T_depth -=1
         for kk,O in enumerate(list_ord):
             Wmin,Wmax = 0.95*O.W_fin.min(),1.05*O.W_fin.max()
             indm      = np.where((W_mod>Wmin)&(W_mod<Wmax))[0]
@@ -323,7 +369,7 @@ if __name__ == "__main__":
             # does this not work with order_by_order?
             #----
             vsys_time,vsys_kp = simple_correlation(np.array(list_ord),window,phase,Kp,vtot,\
-                                plot=True,savedir=save_dir)
+                                plot=True,savedir=save_dir,oot=oot)
 
             savedata = (vsys_time,vsys_kp)
             with open(nam_res, 'wb') as specfile:
@@ -333,7 +379,7 @@ if __name__ == "__main__":
             #----
         else:
             # compute correlation for all orders, save, then later combine chosen orders for plots
-            corr = compute_correlation(np.array(list_ord),window,phase,Kp,Vsys,V_shift)
+            corr = compute_correlation(np.array(list_ord),window,phase,Kp,Vsys,V_shift,reprocess=False)
 
         ### Save data
         savedata = (Vsys,Kp,corr)
@@ -373,14 +419,14 @@ if __name__ == "__main__":
         #K_cut = round(K_best,1)
     plot_correlation_map(Vsys,Kp,sn_map,nam_fig,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True,box=False,text=True,text_title='{} {} \n$K_p$ = {:.2f} km/s \n$V_s$ = {:.2f} km/s'.format(sp,text,K_cut,V_cut))
     if plot_all_orders:
-        dir_ord = save_dir+'individual_orders/'
+        dir_ord = save_dir+'individual_orders_{}{}/'.format(sp,binary)
         if args.masked: dir_ord += 'masked/'
         if not os.path.exists(dir_ord):
             os.makedirs(dir_ord)
 
         for iord in range(len(list_ord)):
             O         = list_ord[iord]
-            snmap_ord = get_snrmap(np.array(orders)[[iord]],Kp,Vsys,corr[:,:,iord,:],Kp_lim,Vsys_lim)
+            snmap_ord = get_snrmap(np.array(orders)[[iord]],Kp,Vsys,corr[:,:,[iord],:],Kp_lim,Vsys_lim)
             sigma_ord = np.sum(corr[:,:,iord,:],axis=2)/snmap_ord
             fig_ord   = dir_ord+'Kp_vsys_map_{}{}{}{}_ord{}_iord{}.png'.format(sp,al,mk,OOT,O.number,iord)
             plot_correlation_map(Vsys,Kp,sigma_ord,fig_ord,V_cut,K_cut,cmap,[],sn_cuty,20,pointer=True,box=False,text=True,text_title='{} {} \n$K_p$ = {:.2f} km/s \n$V_s$ = {:.2f} km/s'.format(sp,text,K_cut,V_cut))

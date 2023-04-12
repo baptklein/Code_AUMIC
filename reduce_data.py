@@ -63,7 +63,7 @@ if instrument=='igrins' or instrument=='IGRINS':
     mod_add  = 'Gemini_South'
     R        = 45000
 elif instrument=='spirou' or instrument=='SPIROU':
-    mod_add  = 'Canada-France-Hawaii_Telescope'
+    mod_add  = 'canada-france-hawaii_telescope'
     R        = 70000
 file_list = sorted(glob.glob(skycalc_dir+'skycalc_models_AU_MIC_{}_frame*.npz'.format(mod_add)))
 
@@ -79,14 +79,13 @@ inject   = False
 inj_amp  = 1.
 inj_Kp   = 83. #km/s 83km/s true_data
 inj_vsys = -4.71  #km/s -4.71 km/s true_data
-
+Mp       = 6.7 # select mass and radius used to produce model to be injected
+Rp       = 0.348
 
 
 ### Data reduction parameters
-StarRotator = False      # optionally remove StarRotator model at the beginning of reduction
-phoenix     = True       # use phoenix option of StarRotator, if False use Kurucz
 align       = False      # optionally align the spectra
-fitblaze    = False       # optionally fit a blaze function to IGRINS spectra
+fitblaze    = True       # optionally fit a blaze function to IGRINS spectra
 dep_min     = 0.7        # remove all data when telluric relative absorption < 1 - dep_min
 thres_up    = 0.1       # Remove the line until reaching 1-thres_up
 Npt_lim     = 200       # If the order contains less than Npt_lim points, it is discarded from the analysis
@@ -123,14 +122,15 @@ if fitblaze and instrument=='spirou':
 fac       = 1.8 # factor of std at which to mask
 
 if inject:
+    outroot += '{:.3f}Mearth_{:.3f}Rjup/'.format(Mp,Rp)
     outroot += 'inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}'.format(inj_amp,inj_Kp,inj_vsys)
     # load model
     # model files
-    species     = ['CO'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    species     = ['CH4'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
     solar       = '1x'
     CO_ratio    = '1.0'
-    model_dir = 'Models/{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
+    model_dir = 'Models/{:.3f}Mearth_{:.3f}Rjup/{}_metallicity_{}_CO_ratio/'.format(Mp,Rp,solar,CO_ratio)
     mod_file = model_dir+'pRT_data_full_{}.dat'.format(sp)
     W_mod = []
     T_depth = []
@@ -147,10 +147,6 @@ if inject:
     outroot += '_{}/'.format(sp)
 else:
     outroot += 'true_data/'
-if StarRotator:
-    if phoenix: ll = 'phoenix'
-    else: ll = 'kurucz'
-    outroot += 'StarRotator_{}/'.format(ll)
 
 if align:
     outroot += 'aligned/'
@@ -170,6 +166,14 @@ nam_fin  = outroot+"reduced_1.pkl"
 nam_info = outroot+"info_1.dat"
 os.makedirs(outroot,exist_ok=True)
 os.makedirs(outroot+'masked/',exist_ok=True)
+
+
+if not inject:
+    ord_plot  = 15 # choose an order to plot
+    plot_file = outroot + "redplot_data_{}_ord{}.pkl".format(instrument,ord_plot)
+    A_plot    = []
+else:
+    ord_plot  = 10000 #hack
 
 
 ind_rem     = []
@@ -203,17 +207,18 @@ for nn in range(nord):
     O.blaze  = np.array(blaze[nn],dtype=float)
     O.SNR    = np.array(SN[nn],dtype=float)
     O.W_mean = O.W_raw.mean()
-    if instrument=='spirou':
-        O.I_atm  = np.array(Ia[nn],dtype=float)
-    else:
-        # skycalc models for telluric reference
-        atm  = []
-        watm = []
-        for iep in range(len(O.I_raw)):
-            atm.append(skycalc_models[iep][nn])
-            watm.append(skycalc_wlens[iep][nn])
-        O.I_atm = np.array(atm)
-        O.W_atm = np.array(watm) # shape nep,npix but should be same in each ep
+    #if instrument=='spirou':
+    #    O.I_atm  = np.array(Ia[nn],dtype=float) # this is the removed telluric spectrum in spirou DRS
+    #else:
+    # skycalc models for telluric reference
+    atm  = []
+    watm = []
+
+    for iep in range(len(O.I_raw)):
+        atm.append(skycalc_models[iep][nn])
+        watm.append(skycalc_wlens[iep][nn])
+    O.I_atm = np.array(atm)
+    O.W_atm = np.array(watm) # shape nep,npix but should be same in each ep
 
     list_ord.append(O)
 print("DONE\n")
@@ -221,92 +226,19 @@ print("DONE\n")
 t0          = time.time()
 NCF         = np.zeros(nord)
 
-if StarRotator:
-    print("Uploading StarRotator model, convolving and interpolating\n")
-    # upload model
-    if phoenix: ll = '0mu'
-    else:       ll = '20mu' # adjust number of mu angles here
-    with open('../../StarRotator/AUMIC_{}_StarRotator_{}.pkl'.format(instrument,ll),'rb') as specfile:
-        SRwl,SRspectra,SRstellar_spectrum,SRlightcurve,SRmask = pickle.load(specfile)
-    # convolve to instrument resolution
-    dv = c0/R/1000. # in km/s
 
-    R_model = (SRwl[1:-1]+SRwl[0:-2])/(SRwl[1:-1]-SRwl[0:-2])/2
-    sigma  = np.median(R_model)/R
-    if sigma<1: sigma = 1 # otherwise 'increasing' resolution
-    kernel = Gaussian1DKernel(stddev=sigma)
+#### ------------------------------
+#### ----- Main reduction ---------
+#### ------------------------------
 
-    for iord in range(nord):
-        O        = list_ord[iord]
-        WW_ord   = O.W_raw
-        I_ord    = O.I_raw
-        nep,npix = I_ord.shape
-
-        # Shift PHOENIX model from stellar rest frame -> Doppler shift (and interpolate) to Earth rest frame
-        # move W_cl Earth rest wavelengths to stellar rf
-        WW_star = WW_ord[None,:] / ( 1 + V_corr[:,None]/c0)
-        ## Evaluate StarRotator models in Earth rest frame for each order, convolved to SPIRou resolution
-        SRp_flux_Earth = np.zeros_like(I_ord)
-        for iep in range(nep):
-            # convolve first to SPIRou resolution
-            f_conv = convolve(SRspectra[iep],kernel,normalize_kernel=True,boundary='extend')
-
-            # interpolate to Earth rest frame (for the chosen order)
-            star_func = interp1d(SRwl,f_conv,bounds_error=False)
-            SRp_flux_Earth[iep] = star_func(WW_star[iep])
-
-        ## normalise the models
-        cont_model = []
-        for iep in range(len(SRp_flux_Earth)):
-            # normalise
-            flm = maximum_filter(SRp_flux_Earth[iep],size=100)
-            SRp_flux_Earth[iep] /= flm
-            cont_model.append(flm)
-        O.SR = SRp_flux_Earth
-
-        # Fit model to the data
-        ####################################
-        ###    STEP 1: normalise data    ###
-        ####################################
-        fn       = np.zeros((nep,npix))
-        cont     = np.zeros_like(fn)
-        for iep in range(nep):
-            filt      = maximum_filter(I_ord[iep],size=50)
-            fn[iep]   = I_ord[iep]/filt
-            cont[iep] = filt
-
-        ######################################
-        ###    STEP 2: fit scaling param   ###
-        ######################################
-        scale_params = []
-        for iep in range(nep):
-            _fm = O.SR[iep]-1
-            _fn = fn[iep]-1
-
-            def model(WW_ord,a):
-                return a*_fm
-
-            popt,pconv = curve_fit(model,WW_ord,_fn)
-            scale_params.append(popt[0])
-
-        ######################################
-        ###    STEP 3: apply correction    ###
-        ######################################
-
-        I_SR = np.zeros_like(I_ord)
-        for iep in range(nep):
-            fm_ = O.SR[iep] - 1
-            #_fn = 1-fn[iep]
-            #I_SR[iep] = ( (_fn/(scale_params[iep]*_fm)) + 1 ) * cont[iep]
-            I_SR[iep] = (fn[iep] / (scale_params[iep]*fm_ + 1 ) )
-
-        O.I_raw = I_SR/np.nanmean(I_SR,axis=0)
-
-
-#### Main reduction
 print("START DATA REDUCTION")
 
 plot_all_orders = True
+
+static_star = []
+
+
+
 if not plot_all_orders:
     plot_ord = 10 # pick an example order to plot
 for nn in range(nord):
@@ -333,6 +265,9 @@ for nn in range(nord):
     #    W_cl,I_cl =  O.remove_tellurics(dep_min,thres_up)  ### Need a telluric spectrum
     #else:
     W_cl,I_cl = np.copy(O.W_raw),np.copy(O.I_raw)
+    if O.number==ord_plot:
+        print(I_cl)
+        A_plot.append([np.copy(W_cl),np.copy(I_cl)])
 
     #if instrument=='igrins' or instrument=='IGRINS':
     #    I_cl+=0.1 # otherwise code ride loads of orders
@@ -483,6 +418,8 @@ for nn in range(nord):
                     blaze.append(cfit(wl))
                 I_cl = I_cl/blaze
                 O.blaze = blaze
+                #if O.number==ord_plot:
+                #    A_plot.append([W_cl,I_cl])
 
             if not do_hipass and not sample_residuals:
                 I_sub1 = I_cl
@@ -529,7 +466,8 @@ for nn in range(nord):
                 else:
                     I_sub1[kk] = (I_cl[kk]/I_med_geo[kk]) # don't perform stretch/shift
 
-            ### First compute reference spectrum in the Geocentric frame
+            static_star.append([W_cl,I_med_geo[int(nep/2)]])
+            ### Then compute reference spectrum in the Geocentric frame
             I_med2  = np.nanmedian(np.concatenate((I_sub1[:n_ini],I_sub1[n_end:]),axis=0),axis=0)
             I_sub2  = np.zeros(I_sub1.shape) + np.nan
 
@@ -552,6 +490,8 @@ for nn in range(nord):
         print('after blaze {}'.format(np.isnan(I_sub.any())))
         ### STEP 2 -- NORMALISATION AND OUTLIER REMOVAL
         W_norm1,I_norm1 = O.normalize(W_sub,I_sub,N_med,sig_out,N_bor)
+        if O.number==ord_plot:
+            A_plot.append([W_norm1,I_norm1])
         ### Correct for bad pixels
 
         W_norm2,I_norm2 = O.filter_pixel(W_norm1,I_norm1,deg_px,sig_out)
@@ -590,6 +530,8 @@ for nn in range(nord):
             O.I_fin         = I_norm2
             Il              = np.log(I_norm2)
         O.W_fin  = W_norm2
+        if O.number==ord_plot:
+            A_plot.append([O.W_fin,O.I_fin])
         print('after airmass detrending {}'.format(O.I_fin.shape))
         ### Removing the NaNs in Il
         #ind   = []
@@ -648,18 +590,20 @@ for nn in range(nord):
         else:
             if mode_pca == "pca" or mode_pca == "PCA":
 
-                if auto_tune: n_com = O.tune_pca(Nmap=5,thr=thr_pca)
+                if auto_tune: n_com,ampl,std_in = O.tune_pca(Nmap=5,thr=thr_pca)
                 else: n_com = npca[nn]
-
+                #print('Ampl:')
+                #print(ampl)
 
                 pca   = PCA(n_components=n_com)
                 x_pca = np.float32(ff)
                 pca.fit(x_pca)
                 principalComponents = pca.transform(x_pca)
                 x_pca_projected = pca.inverse_transform(principalComponents)
-                O.I_pca = np.exp((ff-x_pca_projected)*ist+im) - 1.0
-                O.M_pca = np.exp(x_pca_projected*ist+im) # save that removed for the model reprocessing
+                O.I_pca    = np.exp((ff-x_pca_projected)*ist+im) - 1.0
+                O.M_pca    = np.exp(x_pca_projected*ist+im) # save that removed for the model reprocessing
                 O.ncom_pca = n_com
+                O.std_fit  = [ampl,std_in]
                 # check if within range of DRS dispersion
                 disp = np.mean(np.std(O.I_pca[:,indw-N_px:indw+N_px],axis=1))
                 drs_disp = 1./O.SNR
@@ -699,14 +643,17 @@ for nn in range(nord):
                         plt.tight_layout()
                         plt.savefig(outroot+"pca_reduced_order{}.png".format(O.number))
                         plt.close()
+                if O.number==ord_plot:
+                    A_plot.append([O.W_fin,O.I_pca])
             # RESIDUAL SAMPLING OF DEEP TELLURIC LINES
             if sample_residuals:
-                O.I_pca = O.telluric_residual_sampling(O.W_fin,O.I_pca)
+                O.I_pca,wlcen = O.telluric_residual_sampling(O.W_fin,O.I_pca)
             if do_hipass:
                 O.I_pca,mask = O.hipass_filter(O.W_fin,O.I_pca)
                 # could apply mask to the data
                 # for now dont
-
+            if O.number==ord_plot:
+                A_plot.append([O.W_fin,O.I_pca,wlcen,O.W_atm,O.I_atm])
             ### ESTIMATES FINAL METRICS
             O.SNR_mes     = 1./np.std(O.I_fin[:,indw-N_px:indw+N_px],axis=1)
             O.SNR_mes_pca = 1./np.std(O.I_pca[:,indw-N_px:indw+N_px],axis=1)
@@ -785,7 +732,9 @@ for nn in range(nord):
 print("DATA REDUCTION DONE\n")
 file.close()
 
-
+### Save removed stellar spectra
+if instrument=='spirou' and not inject:
+    np.save(outroot+'spirou_star.npy',static_star)
 
 ### Plot final metrics -- RMS per spectrum in each order
 print("PLOT METRICS")
@@ -805,6 +754,7 @@ SNR_mes = []
 SNR_mes_pca = []
 MPC = []
 NPC = []
+std_ampl = []
 for nn in range(len(orders_fin)):
     O  = list_ord_fin[nn]
     WW.append(O.W_fin)
@@ -815,10 +765,15 @@ for nn in range(len(orders_fin)):
     SNR_mes_pca.append(O.SNR_mes_pca)
     MPC.append(O.M_pca)
     NPC.append(O.ncom_pca)
-savedata = (orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask,MPC,NPC)
+    std_ampl.append(O.std_fit)
+savedata = (orders_fin,WW,Ir,T_obs,phase,window,berv,vstar,airmass,SN,SNR_mes,SNR_mes_pca,Imask,mask,MPC,NPC,std_ampl)
 with open(nam_fin, 'wb') as specfile:
     pickle.dump(savedata,specfile)
 print("DONE")
+
+if not inject:
+    with open(plot_file,'wb') as file:
+        pickle.dump(A_plot,file)
 
 t1          = time.time()
 print("DURATION:",(t1-t0)/60.,"min")
