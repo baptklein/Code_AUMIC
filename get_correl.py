@@ -5,6 +5,8 @@ Created in Mar 2022
 Edited in Jun 2022
 @authors: Baptiste KLEIN, Florian DEBRAS & Annabella MEECH
 """
+import matplotlib
+matplotlib.use('Agg')
 import numpy as np
 import sys
 import os

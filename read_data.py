@@ -6,6 +6,8 @@ Edited in Jun 2022
 
 @author: Baptiste KLEIN & Annabella MEECH
 """
+import matplotlib
+matplotlib.use('Agg')
 import numpy as np
 import sys
 import os
@@ -19,7 +21,7 @@ from functions import *
 import glob
 from pathlib import Path
 
-instrument = 'spirou' # set instrument
+instrument = 'igrins' # set instrument
 
 dir_data = "Data/"
 if instrument=='igrins': dir_data += "IGRINS/"   #Sep18 #Jun19
@@ -52,9 +54,11 @@ outroot = "Input_data/"
 if instrument=='igrins': outroot += "igrins/"
 elif instrument=='spirou': outroot += "spirou/"
 os.makedirs(outroot,exist_ok=True)
-name_fin = outroot+"data_{}.pkl".format(instrument)
-wlen_fin = outroot+'wlens_{}.pkl'.format(instrument)
+name_fin     = outroot+"data_{}.pkl".format(instrument)
+wlen_fin     = outroot+'wlens_{}.pkl'.format(instrument)
 humidity_fin = outroot+'humidity_{}.pkl'.format(instrument)
+airms_fin    = outroot+'airmass_{}.pkl'.format(instrument)
+times_fin    = outroot+'times_{}.pkl'.format(instrument)
 
 if instrument=='igrins':
     time_JD, wlens, data_RAW, data_var, data_sn, airms, humidity = read_igrins_data(dir_data)
@@ -288,4 +292,8 @@ with open(wlen_fin, 'wb') as wlenfile:
 # save humidity in a separate file
 with open(humidity_fin, 'wb') as humfile:
     pickle.dump(humidity,humfile)
+with open(airms_fin,'wb') as airmfile:
+    pickle.dump(airms,airmfile)
+with open(times_fin,'wb') as timesfile:
+    pickle.dump(time_JD,timesfile)
 print("\nFINISHED.")

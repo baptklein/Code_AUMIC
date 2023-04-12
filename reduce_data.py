@@ -6,6 +6,8 @@ Edited in Jun 2022
 
 @author: Baptiste KLEIN, Florian DEBRAS & Annabella MEECH
 """
+import matplotlib
+matplotlib.use('Agg')
 import numpy as np
 import sys
 import os
@@ -497,10 +499,7 @@ for nn in range(nord):
         W_norm2,I_norm2 = O.filter_pixel(W_norm1,I_norm1,deg_px,sig_out)
         ### END of STEP 2
         print('after normalisation {}'.format(np.isnan(I_norm2.any())))
-        #plt.figure()
-        #for iep in range(len(I_norm2)):
-        #    plt.plot(I_norm2[iep])
-        #plt.show()
+
         ### STEP 3 -- DETREND WITH AIRMASS -- OPTIONAL
 
         ind_flag = []
