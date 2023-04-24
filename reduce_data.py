@@ -15,8 +15,7 @@ import matplotlib.pyplot as plt
 import pickle
 from astropy.convolution import Gaussian1DKernel, convolve
 from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.decomposition import FastICA
+from sklearn.decomposition import PCA, FastICA
 from scipy.optimize import curve_fit
 from scipy import interpolate
 from scipy.ndimage import percentile_filter,maximum_filter
@@ -77,25 +76,25 @@ for ifile in range(len(file_list)):
     skycalc_wlens.append(d['wlens'])
 
 ### Injection parameters - optionally inject a planet model
-inject   = False
+inject   = True
 inj_amp  = 1.
 inj_Kp   = 83. #km/s 83km/s true_data
 inj_vsys = -4.71  #km/s -4.71 km/s true_data
-Mp       = 6.7 # select mass and radius used to produce model to be injected
-Rp       = 0.348
+Mp       = 11.7 # select mass and radius used to produce model to be injected
+Rp       = 0.363
 
 
 ### Data reduction parameters
 align       = False      # optionally align the spectra
-fitblaze    = True       # optionally fit a blaze function to IGRINS spectra
+fitblaze    = True       # optionally fit a blaze function to spectra
 dep_min     = 0.7        # remove all data when telluric relative absorption < 1 - dep_min
-thres_up    = 0.1       # Remove the line until reaching 1-thres_up
-Npt_lim     = 200       # If the order contains less than Npt_lim points, it is discarded from the analysis
+thres_up    = 0.1        # Remove the line until reaching 1-thres_up
+Npt_lim     = 200        # If the order contains less than Npt_lim points, it is discarded from the analysis
 doLS        = False      # perform stretch/shift of reference stellar out-of-transit mean spectrum to each observed spectrum (ATM only turned off for spirou)
 
 ### Interpolation parameters
-sig_g    = 1.0                         ### STD of one SPIRou px in km/s
-N_bor    = 15                           ### Nb of pts removed at each extremity (twice)
+sig_g    = 1.0           # STD of one SPIRou px in km/s
+N_bor    = 15            # Nb of pts removed at each extremity (twice)
 
 ### Normalisation parameters
 N_med    = 50                          ### Nb of points used in the median filter for the interpolation
@@ -116,22 +115,25 @@ thr_pca     = 1.0                   ### PCA comp removed if eigenvalue larger th
 sample_residuals = True  # optionally sample deep telluric residuals post PCA
 do_hipass        = False
 
-if fitblaze and instrument=='spirou':
-    print('fitblaze not set up for spirou')
-    fitblaze = False
+#if fitblaze and instrument=='spirou':
+#    print('fitblaze not set up for spirou')
+#    fitblaze = False
 
 ### Parameters for masking
 fac       = 1.8 # factor of std at which to mask
 
 if inject:
+    solar       = '100x'
+    CO_ratio    = '1.5'
+    species     = ['CH4','CO','CO2','H2O','NH3'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
+    sp          = '_'.join(i for i in species)
+
     outroot += '{:.3f}Mearth_{:.3f}Rjup/'.format(Mp,Rp)
+    outroot += '{}_metallicity_{}_CO_ratio/'.format(solar,CO_ratio)
     outroot += 'inject_amp{:.1f}_Kp{:.1f}_vsys{:.2f}'.format(inj_amp,inj_Kp,inj_vsys)
     # load model
     # model files
-    species     = ['CH4'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
-    sp          = '_'.join(i for i in species)
-    solar       = '1x'
-    CO_ratio    = '1.0'
+
     model_dir = 'Models/{:.3f}Mearth_{:.3f}Rjup/{}_metallicity_{}_CO_ratio/'.format(Mp,Rp,solar,CO_ratio)
     mod_file = model_dir+'pRT_data_full_{}.dat'.format(sp)
     W_mod = []
@@ -387,47 +389,47 @@ for nn in range(nord):
 
         ### STEP 1 -- remove master out-of-transits
         # First in Earth frame, then stellar for IGRINS (opposite for SPIRou)
-        if instrument == 'IGRINS' or instrument == 'igrins':
+        #if instrument == 'IGRINS' or instrument == 'igrins':
             # first fit a blaze function
             # try fitting blaze without these low flux regions
-            if fitblaze:
-                blaze = []
-                maxrms = 0.005
-                # fit blaze for each epoch
-                for iep in range(nep):
-                    test_flux = I_cl[iep]
-                    test_wlens = np.copy(W_cl)
-                    #plt.plot(test_wlens,test_flux/np.max(test_flux))
+        if fitblaze:
+            blaze = []
+            maxrms = 0.005
+            # fit blaze for each epoch
+            for iep in range(nep):
+                test_flux = I_cl[iep]
+                test_wlens = np.copy(W_cl)
+                #plt.plot(test_wlens,test_flux/np.max(test_flux))
 
-                    mask = np.ones(len(test_flux),'bool')
-                    normspec = test_flux/np.max(test_flux)
-                    curcall = 0
-                    residrms = 1
-                    numcall = 15
-                    while ((curcall < numcall) and (residrms > maxrms)):
-                        #print('On iteration {} of {}'.format(curcall,numcall))
-                        #with warnings.simplefilter('ignore',np.RankWarning):
-                        z,mask,residrms,test_wlens,normspec = O.fit_blaze(test_wlens, normspec, maxrms,
-                                         numcalls=numcall, curcall=curcall,order=15,nbor=15,verbose=False,showplot=False)
-                        #mask = ~a
-                        curcall +=1
-                    wl = W_cl
-                    cfit = np.poly1d(z)
-                    #plt.plot(wl,test_flux/np.max(test_flux))
-                    #plt.plot(wl,cfit(wl))
-                    #plt.title(iep)
-                    #plt.show()
-                    blaze.append(cfit(wl))
-                I_cl = I_cl/blaze
-                O.blaze = blaze
-                #if O.number==ord_plot:
-                #    A_plot.append([W_cl,I_cl])
+                mask = np.ones(len(test_flux),'bool')
+                normspec = test_flux/np.max(test_flux)
+                curcall = 0
+                residrms = 1
+                numcall = 15
+                while ((curcall < numcall) and (residrms > maxrms)):
+                    #print('On iteration {} of {}'.format(curcall,numcall))
+                    #with warnings.simplefilter('ignore',np.RankWarning):
+                    z,mask,residrms,test_wlens,normspec = O.fit_blaze(test_wlens, normspec, maxrms,
+                                     numcalls=numcall, curcall=curcall,order=15,nbor=15,verbose=False,showplot=False)
+                    #mask = ~a
+                    curcall +=1
+                wl = W_cl
+                cfit = np.poly1d(z)
+                #plt.plot(wl,test_flux/np.max(test_flux))
+                #plt.plot(wl,cfit(wl))
+                #plt.title(iep)
+                #plt.show()
+                blaze.append(cfit(wl))
+            I_cl = I_cl/blaze
+            O.blaze = blaze
+            #if O.number==ord_plot:
+            #    A_plot.append([W_cl,I_cl])
 
             if not do_hipass and not sample_residuals:
                 I_sub1 = I_cl
             elif O.number in [11,19,45,47]:
                 I_sub1 = I_cl
-                print('skip median out of transit for this order')
+                print('skip median out of transit for this order') #?
             else:
                 ### Compute mean spectrum in the stellar rest frame
                 V_cl      = c0*(W_cl/O.W_mean-1.)
