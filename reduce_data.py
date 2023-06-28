@@ -57,6 +57,7 @@ print("Read data from",filename)
 with open(filename,'rb') as specfile:
     A = pickle.load(specfile)
 orders,WW,Ir,blaze,Ia,T_obs,phase,window,berv,vstar,airmass,SN = A
+print(T_obs.max()-T_obs.min())
 
 # I should save these in Ia under read_data.py
 skycalc_dir = outroot+'skycalc_models/'
@@ -76,12 +77,12 @@ for ifile in range(len(file_list)):
     skycalc_wlens.append(d['wlens'])
 
 ### Injection parameters - optionally inject a planet model
-inject   = True
-inj_amp  = 1.
-inj_Kp   = 83. #km/s 83km/s true_data
-inj_vsys = -4.71  #km/s -4.71 km/s true_data
-Mp       = 11.7 # select mass and radius used to produce model to be injected
-Rp       = 0.363
+inject      = False
+inj_amp     = 3.
+inj_Kp      = -83.   # km/s 83km/s true_data
+inj_vsys    = -4.71  # km/s -4.71 km/s true_data
+Mp          = 11.7   # select mass and radius used to produce model to be injected
+Rp          = 0.363
 
 
 ### Data reduction parameters
@@ -93,13 +94,13 @@ Npt_lim     = 200        # If the order contains less than Npt_lim points, it is
 doLS        = False      # perform stretch/shift of reference stellar out-of-transit mean spectrum to each observed spectrum (ATM only turned off for spirou)
 
 ### Interpolation parameters
-sig_g    = 1.0           # STD of one SPIRou px in km/s
-N_bor    = 15            # Nb of pts removed at each extremity (twice)
+sig_g       = 1.0        # STD of one SPIRou px in km/s
+N_bor       = 15         # Nb of pts removed at each extremity (twice)
 
 ### Normalisation parameters
-N_med    = 50                          ### Nb of points used in the median filter for the interpolation
-sig_out  = 5.0                          ### Threshold for outliers identification during normalisation process
-deg_px   = 2                            ### Degree of the polynomial fit to the distribution of pixel STDs
+N_med       = 50         ### Nb of points used in the median filter for the interpolation
+sig_out     = 5.0        ### Threshold for outliers identification during normalisation process
+deg_px      = 2          ### Degree of the polynomial fit to the distribution of pixel STDs
 
 ### Parameters for detrending with airmass
 det_airmass = True
@@ -123,7 +124,7 @@ do_hipass        = False
 fac       = 1.8 # factor of std at which to mask
 
 if inject:
-    solar       = '100x'
+    solar       = '30x'
     CO_ratio    = '1.5'
     species     = ['CH4','CO','CO2','H2O','NH3'] # edit to include species in model ['CH4','CO','CO2','H2O','NH3']
     sp          = '_'.join(i for i in species)
@@ -183,6 +184,8 @@ else:
 ind_rem     = []
 V_corr      = vstar - berv                  ### Geocentric-to-stellar rest frame correction
 n_ini,n_end = get_transit_dates(window)     ### Get transits start and end indices
+print(len(phase[n_ini:n_end]))
+print(len(phase[n_end:]))
 
 file = open(nam_info,"w")
 ### Create order objects
@@ -439,17 +442,21 @@ for nn in range(nord):
                 I_sub1    = np.zeros(I_cl.shape)
 
                 if doLS:
+                    ### Remove extremities to avoid interpolation errors
+                    W_sub = W_cl[N_bor:-N_bor]
+                    I_sub = I_sub1[:,N_bor:-N_bor]#I_cl[:,N_bor:-N_bor]
+                    I_med_geo = I_med_geo[:,N_bor:-N_bor]
                     # a stretch/shift of the stellar ref spec to each spectrum (then remove)
                     for kk in range(len(I_cl)):
                         X          = np.array([np.ones(len(I_med_geo[kk])),I_med_geo[kk]],dtype=float).T
-                        p,pe       = LS(X,I_sub2[kk])
+                        p,pe       = LS(X,I_sub[kk])
                         Ip         = np.dot(X,p)
-                        I_sub1[kk] = I_sub2[kk]/Ip
+                        I_sub1[kk] = I_sub[kk]/Ip
                 else:
                     I_sub1 = I_cl/I_med_geo
-            ### Remove extremities to avoid interpolation errors
-            W_sub = W_cl[N_bor:-N_bor]
-            I_sub = I_sub1[:,N_bor:-N_bor]#I_cl[:,N_bor:-N_bor]
+                    ### Remove extremities to avoid interpolation errors
+                    W_sub = W_cl[N_bor:-N_bor]
+                    I_sub = I_sub1[:,N_bor:-N_bor]#I_cl[:,N_bor:-N_bor]
 
         elif instrument =='SPIROU' or instrument=='spirou':
             ### If the order is kept - Remove high-SNR(?) out-of-transit reference spectrum
@@ -601,7 +608,7 @@ for nn in range(nord):
                 pca.fit(x_pca)
                 principalComponents = pca.transform(x_pca)
                 x_pca_projected = pca.inverse_transform(principalComponents)
-                O.I_pca    = np.exp((ff-x_pca_projected)*ist+im) - 1.0
+                O.I_pca    = np.exp((ff-x_pca_projected))-1.0#*ist+im) - 1.0 #changed on 16-Jun-23
                 O.M_pca    = np.exp(x_pca_projected*ist+im) # save that removed for the model reprocessing
                 O.ncom_pca = n_com
                 O.std_fit  = [ampl,std_in]
